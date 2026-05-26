@@ -18,12 +18,12 @@ export default function VirtualQuestionList({ questions }) {
           className="virtual-scroll"
           height={height}
           itemCount={questions.length}
-          itemSize={390}
+          itemSize={width < 640 ? 326 : 372}
           width={width}
-          overscanCount={4}
+          overscanCount={6}
         >
           {({ index, style }) => (
-            <div style={style} className="px-3 py-2 sm:px-4">
+            <div style={style} className="px-2 py-1.5 sm:px-4 sm:py-2">
               <QuestionCard question={questions[index]} index={index} />
             </div>
           )}

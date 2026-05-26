@@ -4,14 +4,23 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 
 const difficultyClasses = {
-  Easy: 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100',
-  Medium: 'border-amber-300/30 bg-amber-300/10 text-amber-100',
-  Hard: 'border-rose-300/30 bg-rose-300/10 text-rose-100',
+  Easy: 'border-emerald-200/45 bg-emerald-300/15 text-emerald-50',
+  Medium: 'border-amber-200/45 bg-amber-300/15 text-amber-50',
+  Hard: 'border-rose-200/45 bg-rose-300/15 text-rose-50',
+};
+
+const typeClasses = {
+  MCQ: 'from-cyan-300 to-blue-400',
+  'Short Answer': 'from-emerald-300 to-teal-400',
+  'Long Answer': 'from-violet-300 to-fuchsia-400',
+  'True/False': 'from-amber-300 to-orange-400',
+  'Assertion Reason': 'from-pink-300 to-rose-400',
+  Numerical: 'from-lime-300 to-emerald-400',
 };
 
 function MarkdownBlock({ children }) {
   return (
-    <div className="question-markdown thin-scrollbar overflow-x-auto text-[17px] leading-8 text-slate-100 sm:text-lg">
+    <div className="question-markdown thin-scrollbar overflow-x-auto text-[15px] leading-6 text-slate-50 sm:text-[17px] sm:leading-7">
       <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
         {children}
       </ReactMarkdown>
@@ -21,31 +30,32 @@ function MarkdownBlock({ children }) {
 
 export default function QuestionCard({ question, index }) {
   return (
-    <article className="h-full overflow-hidden rounded-lg border border-white/10 bg-slate-950/38 p-4">
-      <div className="flex items-start justify-between gap-3">
+    <article className="relative h-full overflow-hidden rounded-2xl border border-white/12 bg-slate-950/58 p-2.5 shadow-[0_10px_0_rgba(2,6,23,0.62),0_22px_38px_rgba(0,0,0,0.3)] backdrop-blur-xl sm:p-4">
+      <div className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${typeClasses[question.type] || 'from-cyan-300 to-blue-400'}`} />
+      <div className="flex items-start justify-between gap-2 pt-1">
         <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-200">Question {index + 1}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <span className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-bold text-slate-200">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">Question {index + 1}</p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <span className={`rounded-lg bg-gradient-to-br px-2 py-1 text-[11px] font-black text-slate-950 ${typeClasses[question.type] || 'from-cyan-300 to-blue-400'}`}>
               {question.type}
             </span>
-            <span className={`rounded-lg border px-2.5 py-1 text-xs font-bold ${difficultyClasses[question.difficulty] || difficultyClasses.Medium}`}>
+            <span className={`rounded-lg border px-2 py-1 text-[11px] font-black ${difficultyClasses[question.difficulty] || difficultyClasses.Medium}`}>
               {question.difficulty}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="thin-scrollbar mt-4 h-[142px] overflow-auto rounded-lg border border-white/10 bg-white/[0.035] p-3">
+      <div className="thin-scrollbar mt-2.5 h-[104px] overflow-auto rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.09] to-white/[0.035] p-2.5 sm:mt-4 sm:h-[132px] sm:p-3">
         <MarkdownBlock>{question.question}</MarkdownBlock>
       </div>
 
       {question.options?.length ? (
-        <div className="thin-scrollbar mt-3 flex gap-2 overflow-x-auto pb-1">
+        <div className="thin-scrollbar mt-2 flex gap-1.5 overflow-x-auto pb-1 sm:mt-3 sm:gap-2">
           {question.options.map((option, optionIndex) => (
             <span
               key={`${option}-${optionIndex}`}
-              className="min-w-[160px] rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-200"
+              className="min-w-[138px] rounded-xl border border-white/10 bg-white/[0.07] px-2.5 py-1.5 text-xs font-semibold text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:min-w-[160px] sm:px-3 sm:py-2 sm:text-sm"
             >
               {String.fromCharCode(65 + optionIndex)}. {option}
             </span>
@@ -53,13 +63,13 @@ export default function QuestionCard({ question, index }) {
         </div>
       ) : null}
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <div className="thin-scrollbar h-[86px] overflow-auto rounded-lg border border-emerald-300/15 bg-emerald-300/[0.06] p-3">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-200">Answer</p>
+      <div className="mt-2 grid gap-2 sm:mt-3 sm:grid-cols-2 sm:gap-3">
+        <div className="thin-scrollbar h-[66px] overflow-auto rounded-xl border border-emerald-300/20 bg-emerald-300/[0.08] p-2.5 sm:h-[82px] sm:p-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100 sm:text-xs">Answer</p>
           <MarkdownBlock>{question.answer}</MarkdownBlock>
         </div>
-        <div className="thin-scrollbar h-[86px] overflow-auto rounded-lg border border-white/10 bg-white/[0.035] p-3">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Explanation</p>
+        <div className="thin-scrollbar h-[66px] overflow-auto rounded-xl border border-cyan-300/15 bg-cyan-300/[0.06] p-2.5 sm:h-[82px] sm:p-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100 sm:text-xs">Explanation</p>
           <MarkdownBlock>{question.explanation || 'No explanation provided.'}</MarkdownBlock>
         </div>
       </div>

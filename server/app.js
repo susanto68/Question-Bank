@@ -5,6 +5,7 @@ import express from 'express';
 import { getCachedQuestions, saveQuestionsToCache } from './services/cacheService.js';
 import { createComment, getAdminComments, isSupabaseConfigured, sendAdminOtp, verifyAdminOtp, verifyAdminToken } from './services/commentService.js';
 import { generateQuestions } from './services/geminiService.js';
+import { getSupabaseCachedQuestions, saveSupabaseQuestionCache } from './services/supabaseQuestionCache.js';
 import { buildCacheKey, normalizePayload } from './utils/questionPayload.js';
 
 dotenv.config();
@@ -40,9 +41,17 @@ export function createApp() {
     try {
       const payload = normalizePayload(req.body);
       const cacheKey = buildCacheKey(payload);
+      const supabaseCached = await getSupabaseCachedQuestions(cacheKey).catch(() => null);
+
+      if (supabaseCached) {
+        res.json({ source: 'supabase', cacheKey, ...supabaseCached });
+        return;
+      }
+
       const cached = await getCachedQuestions(cacheKey);
 
       if (cached) {
+        await saveSupabaseQuestionCache(cacheKey, cached).catch(() => {});
         res.json({ source: 'cache', cacheKey, ...cached });
         return;
       }
@@ -50,6 +59,7 @@ export function createApp() {
       const generated = await generateQuestions(payload);
       if (generated.cacheable !== false) {
         await saveQuestionsToCache(cacheKey, generated);
+        await saveSupabaseQuestionCache(cacheKey, generated).catch(() => {});
       }
       res.json({ source: generated.model === 'local-fallback' ? 'starter' : 'gemini', cacheKey, ...generated });
     } catch (error) {

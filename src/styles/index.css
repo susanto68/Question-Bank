@@ -23,10 +23,10 @@ body {
   min-width: 320px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 12% 12%, rgba(50, 217, 247, 0.18), transparent 32rem),
-    radial-gradient(circle at 82% 18%, rgba(255, 184, 107, 0.13), transparent 28rem),
-    radial-gradient(circle at 50% 92%, rgba(52, 211, 153, 0.12), transparent 30rem),
-    linear-gradient(135deg, #050816 0%, #07111f 48%, #15151f 100%);
+    radial-gradient(circle at 8% 10%, rgba(45, 212, 191, 0.22), transparent 28rem),
+    radial-gradient(circle at 82% 14%, rgba(251, 113, 133, 0.2), transparent 24rem),
+    radial-gradient(circle at 58% 92%, rgba(250, 204, 21, 0.16), transparent 26rem),
+    linear-gradient(135deg, #050816 0%, #07111f 38%, #181129 72%, #071a16 100%);
   color: #f8fafc;
 }
 
@@ -41,7 +41,10 @@ button {
 
 .glass {
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05));
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.055)),
+    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.1), transparent 22rem),
+    radial-gradient(circle at 100% 0%, rgba(251, 146, 60, 0.1), transparent 22rem);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
   backdrop-filter: blur(24px);
 }
@@ -55,7 +58,7 @@ button {
   min-width: 100%;
   border-collapse: collapse;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .question-markdown th,
@@ -79,13 +82,29 @@ button {
 }
 
 .question-markdown p {
-  margin: 0.55rem 0;
+  margin: 0.32rem 0;
 }
 
 .question-markdown ul,
 .question-markdown ol {
   margin: 0.75rem 0;
   padding-left: 1.25rem;
+}
+
+@media (max-width: 640px) {
+  .question-markdown th,
+  .question-markdown td {
+    padding: 0.42rem;
+  }
+
+  .question-markdown pre {
+    padding: 0.65rem;
+  }
+
+  .question-markdown ul,
+  .question-markdown ol {
+    margin: 0.4rem 0;
+  }
 }
 
 .virtual-scroll::-webkit-scrollbar,

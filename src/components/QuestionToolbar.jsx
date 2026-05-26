@@ -15,10 +15,10 @@ export default function QuestionToolbar({ result, total }) {
   }
 
   return (
-    <div className="no-print border-b border-white/10 p-3 sm:p-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <label className="flex min-h-11 flex-1 items-center gap-2 rounded-lg border border-white/10 bg-slate-950/45 px-3">
-          <Search size={18} className="shrink-0 text-slate-400" />
+    <div className="no-print border-b border-white/10 p-2 sm:p-4">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <label className="flex min-h-10 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-slate-950/45 px-3 sm:min-h-11">
+          <Search size={16} className="shrink-0 text-cyan-200 sm:size-[18px]" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -26,15 +26,15 @@ export default function QuestionToolbar({ result, total }) {
             className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
           />
         </label>
-        <div className="flex items-center gap-2 overflow-x-auto">
-          <span className="shrink-0 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
-            {total} shown - {result.source === 'cache' ? 'Firestore cache' : result.source === 'starter' ? 'Starter set' : 'Gemini'}
+        <div className="thin-scrollbar flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2 sm:pb-0">
+          <span className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-2.5 py-2 text-[11px] font-bold text-slate-200 sm:px-3 sm:text-xs">
+            {total} shown - {result.source === 'supabase' ? 'Supabase cache' : result.source === 'cache' ? 'Firestore cache' : result.source === 'starter' ? 'Starter set' : 'Gemini'}
           </span>
           <button
             type="button"
             onClick={printQuestions}
             title="Export PDF"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-gradient-to-br from-violet-300/20 to-fuchsia-400/15 text-slate-100 shadow-[0_5px_0_rgba(2,6,23,0.65)] hover:bg-white/10 sm:h-11 sm:w-11"
           >
             <FileDown size={18} />
           </button>
@@ -42,7 +42,7 @@ export default function QuestionToolbar({ result, total }) {
             type="button"
             onClick={printQuestions}
             title="Print"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-gradient-to-br from-amber-300/20 to-orange-400/15 text-slate-100 shadow-[0_5px_0_rgba(2,6,23,0.65)] hover:bg-white/10 sm:h-11 sm:w-11"
           >
             <Printer size={18} />
           </button>
@@ -50,7 +50,7 @@ export default function QuestionToolbar({ result, total }) {
             type="button"
             onClick={handleCopy}
             title="Copy"
-            className="inline-flex h-11 shrink-0 items-center gap-2 rounded-lg border border-white/10 bg-cyan-200/10 px-3 text-sm font-bold text-cyan-100 hover:bg-cyan-200/20"
+            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-gradient-to-br from-cyan-300/25 to-emerald-300/15 px-2.5 text-xs font-black text-cyan-50 shadow-[0_5px_0_rgba(2,6,23,0.65)] hover:bg-cyan-200/20 sm:h-11 sm:gap-2 sm:px-3 sm:text-sm"
           >
             <Copy size={18} />
             <span>{copied ? 'Copied' : 'Copy'}</span>

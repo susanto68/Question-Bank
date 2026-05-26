@@ -54,10 +54,13 @@ Add these environment variables in Vercel:
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_SERVICE_ROLE_KEY=your_server_only_service_role_key
 SUPABASE_COMMENTS_TABLE=comments
+SUPABASE_QUESTION_CACHE_TABLE=question_cache
 ADMIN_PHONE=9835379900
 ```
 
-Create the comments table in Supabase by running `supabase/comments.sql` in the Supabase SQL Editor, or use this SQL:
+Create the comments and question-cache tables in Supabase by running `supabase/comments.sql` and `supabase/question_cache.sql` in the Supabase SQL Editor.
+
+Comments table:
 
 ```sql
 create table if not exists public.comments (
