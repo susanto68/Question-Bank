@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { Eye, MessageSquare, Send, ShieldCheck, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 
 import { boards } from '../data/catalog.js';
@@ -26,9 +27,9 @@ function Field({ label, children }) {
 function Panel({ children, onClose }) {
   const panelRef = useRef(null);
 
-  return (
+  return createPortal(
     <motion.div
-      className="fixed inset-0 z-50 bg-slate-950/35 p-3 backdrop-blur-[2px] sm:p-5"
+      className="fixed inset-0 z-[9999] bg-slate-950/55 p-3 backdrop-blur-[3px] sm:p-5"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -48,7 +49,8 @@ function Panel({ children, onClose }) {
       >
         {children}
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }
 
