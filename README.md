@@ -59,7 +59,7 @@ VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_public_anon_key
 ```
 
-Create the comments table in Supabase:
+Create the comments table in Supabase by running `supabase/comments.sql` in the Supabase SQL Editor, or use this SQL:
 
 ```sql
 create table if not exists public.comments (

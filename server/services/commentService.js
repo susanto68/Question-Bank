@@ -77,6 +77,10 @@ export async function createComment(body) {
   const { data, error } = await supabase.from(commentsTable).insert(payload).select('*').single();
 
   if (error) {
+    if (error.message?.includes(`'public.${commentsTable}'`) || error.message?.includes('schema cache')) {
+      throw makeError(`Supabase table public.${commentsTable} is missing. Run supabase/comments.sql in the Supabase SQL Editor.`, 500);
+    }
+
     throw makeError(error.message, 500);
   }
 
@@ -109,6 +113,10 @@ export async function getAdminComments() {
   const { data, error } = await supabase.from(commentsTable).select('*').order('created_at', { ascending: false }).limit(200);
 
   if (error) {
+    if (error.message?.includes(`'public.${commentsTable}'`) || error.message?.includes('schema cache')) {
+      throw makeError(`Supabase table public.${commentsTable} is missing. Run supabase/comments.sql in the Supabase SQL Editor.`, 500);
+    }
+
     throw makeError(error.message, 500);
   }
 
