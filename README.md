@@ -45,3 +45,32 @@ npm run check     # lint + build
 ```
 
 The API checks Firestore first. Cache hits return immediately. Cache misses generate 100 structured questions with Gemini and save the normalized payload to Firestore.
+
+## Supabase Comments
+
+Add these environment variables in Vercel:
+
+```env
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_SERVICE_ROLE_KEY=your_server_only_service_role_key
+SUPABASE_COMMENTS_TABLE=comments
+ADMIN_PHONE=9835379900
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_public_anon_key
+```
+
+Create the comments table in Supabase:
+
+```sql
+create table if not exists public.comments (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  phone text not null,
+  board text not null,
+  comment text not null,
+  page_path text,
+  created_at timestamptz not null default now()
+);
+```
+
+Enable phone OTP in Supabase Auth for admin comment viewing. Only the verified admin phone `9835379900` can read submitted comments.

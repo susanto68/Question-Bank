@@ -1,6 +1,7 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { BookOpen, GraduationCap, Home, Menu, Sparkles } from 'lucide-react';
 
+import CommentCenter from './CommentCenter.jsx';
 import { boards } from '../data/catalog.js';
 
 function SidebarButton({ board, active, onClick }) {
@@ -68,15 +69,18 @@ export default function AppShell() {
               <p className="truncate text-xs text-slate-400">Smart board-wise question generator</p>
             </div>
           </div>
-          <div className="hidden items-center gap-2 text-xs text-slate-300 sm:flex">
-            <span className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-              <BookOpen size={14} /> 100 Questions
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-              <GraduationCap size={14} /> Mobile Ready
-            </span>
+          <div className="flex items-center gap-2">
+            <div className="hidden items-center gap-2 text-xs text-slate-300 lg:flex">
+              <span className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <BookOpen size={14} /> 100 Questions
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <GraduationCap size={14} /> Mobile Ready
+              </span>
+            </div>
+            <CommentCenter />
           </div>
-          <Menu className="text-slate-400 sm:hidden" size={21} />
+          <Menu className="hidden text-slate-400 sm:hidden" size={21} />
         </header>
 
         <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-5">

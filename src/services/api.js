@@ -14,3 +14,17 @@ export async function getHealth() {
   const { data } = await api.get('/api/health');
   return data;
 }
+
+export async function submitComment(payload) {
+  const { data } = await api.post('/api/comments', payload);
+  return data;
+}
+
+export async function getAdminComments(accessToken) {
+  const { data } = await api.get('/api/comments/admin', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  return data;
+}
