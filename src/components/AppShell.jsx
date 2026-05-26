@@ -2,6 +2,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { BookOpen, GraduationCap, Home, Menu, Sparkles } from 'lucide-react';
 
 import CommentCenter from './CommentCenter.jsx';
+import InstallButton from './InstallButton.jsx';
 import { boards } from '../data/catalog.js';
 
 function SidebarButton({ board, active, onClick }) {
@@ -78,6 +79,7 @@ export default function AppShell() {
                 <GraduationCap size={14} /> Mobile Ready
               </span>
             </div>
+            <InstallButton />
             <CommentCenter />
           </div>
           <Menu className="hidden text-slate-400 sm:hidden" size={21} />

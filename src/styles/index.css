@@ -39,6 +39,21 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+.animate-bounce-soft {
+  animation: bounce-soft 1.8s ease-in-out infinite;
+}
+
+@keyframes bounce-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  45% {
+    transform: translateY(-3px);
+  }
+}
+
 .glass {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background:

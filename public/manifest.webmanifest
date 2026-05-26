@@ -1,0 +1,28 @@
+{
+  "name": "Susanto Ganguly AI Question Bank",
+  "short_name": "Question Bank",
+  "description": "AI-powered question bank for ICSE, CBSE, state boards, college, and competitive exams.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#050816",
+  "theme_color": "#050816",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/pwa-icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
