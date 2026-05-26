@@ -3,9 +3,59 @@ import { create } from 'zustand';
 import { generateQuestions } from '../services/api.js';
 import { buildClientFallbackResult } from '../utils/fallbackQuestions.js';
 
+const storageKey = 'ai-question-bank-cache-v1';
+const maxCachedSets = 12;
+
+function canUseStorage() {
+  return typeof window !== 'undefined' && window.localStorage;
+}
+
+function isCacheableResult(result) {
+  return result?.source !== 'starter' && Array.isArray(result?.questions) && result.questions.length >= 20;
+}
+
+function loadQuestionCache() {
+  if (!canUseStorage()) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+    const entries = Object.entries(parsed?.items || {});
+    const freshEntries = entries.filter(([, item]) => isCacheableResult(item?.result));
+    return Object.fromEntries(freshEntries.map(([key, item]) => [key, item.result]));
+  } catch {
+    return {};
+  }
+}
+
+function saveQuestionCache(key, result) {
+  if (!canUseStorage() || !isCacheableResult(result)) {
+    return;
+  }
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+    const items = {
+      ...(parsed.items || {}),
+      [key]: {
+        savedAt: Date.now(),
+        result: {
+          ...result,
+          source: result.source === 'starter' ? 'starter' : result.source,
+        },
+      },
+    };
+    const sorted = Object.entries(items).sort((a, b) => b[1].savedAt - a[1].savedAt).slice(0, maxCachedSets);
+    window.localStorage.setItem(storageKey, JSON.stringify({ items: Object.fromEntries(sorted) }));
+  } catch {
+    // Local storage is a speed layer only; ignore quota/private-mode failures.
+  }
+}
+
 export const useQuestionStore = create((set, get) => ({
   activeKey: '',
-  questionsByKey: {},
+  questionsByKey: loadQuestionCache(),
   loading: false,
   error: '',
   query: '',
@@ -44,6 +94,7 @@ export const useQuestionStore = create((set, get) => ({
 
       const result = await generateQuestions(payload);
       window.clearTimeout(starterTimer);
+      saveQuestionCache(key, result);
       set((state) => ({
         loading: false,
         source: result.source,

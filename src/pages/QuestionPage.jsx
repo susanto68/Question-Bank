@@ -16,7 +16,8 @@ export default function QuestionPage() {
   const subject = board ? findBySlug(getSubjects(board.id, className), subjectId) : '';
   const chapter = subject ? findBySlug(getChapters(subject), chapterId) : '';
   const { activeKey, questionsByKey, loading, error, query, fetchQuestions } = useQuestionStore();
-  const result = questionsByKey[activeKey];
+  const expectedKey = board && className && subject && chapter ? `${board.name}|${className}|${subject}|${chapter}` : '';
+  const result = questionsByKey[activeKey] || questionsByKey[expectedKey];
 
   useEffect(() => {
     if (board && className && subject && chapter) {
@@ -64,13 +65,13 @@ export default function QuestionPage() {
         steps={[board.name, className, subject, chapter, 'Generate Questions']}
       />
 
-      {loading ? <LoadingState /> : null}
+      {loading && !result ? <LoadingState /> : null}
 
       {!loading && error ? (
         <EmptyState title="Generation needs attention" body={error} />
       ) : null}
 
-      {!loading && !error && result ? (
+      {!error && result ? (
         <>
           <QuestionToolbar result={result} total={filteredQuestions.length} />
           <div className="print-area min-h-0 flex-1">
