@@ -143,7 +143,11 @@ export async function verifyAdminOtp(phone, token) {
 
   const fallbackAdminOtp = getFallbackAdminOtp();
 
-  if (fallbackAdminOtp && cleanToken === fallbackAdminOtp) {
+  if (fallbackAdminOtp) {
+    if (cleanToken !== fallbackAdminOtp) {
+      throw makeError('Private admin OTP is incorrect.', 401);
+    }
+
     return {
       id: 'fallback-admin',
       phone: `+91${adminPhone}`,
