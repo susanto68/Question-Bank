@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Download, Smartphone, X } from 'lucide-react';
 
 function isStandalone() {
@@ -71,27 +72,32 @@ export default function InstallButton() {
         <span className="hidden sm:inline">{installed ? 'Installed' : 'Install'}</span>
       </button>
 
-      {showHelp ? (
-        <div
-          className="absolute right-0 top-12 z-[70] w-[min(82vw,300px)] rounded-2xl border border-cyan-100/25 bg-slate-950/95 p-4 text-left text-sm text-slate-100 shadow-[0_22px_60px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
-          role="dialog"
-        >
-          <button
-            type="button"
-            onClick={() => setShowHelp(false)}
-            className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-300"
-            title="Close install help"
-          >
-            <X size={15} />
-          </button>
-          <p className="pr-8 text-sm font-black text-cyan-100">Install on mobile</p>
-          <p className="mt-2 text-xs leading-5 text-slate-300">
-            {isAppleMobile
-              ? 'Open Safari share menu, then tap Add to Home Screen.'
-              : 'Open your browser menu and choose Install app or Add to Home screen.'}
-          </p>
-        </div>
-      ) : null}
+      {showHelp
+        ? createPortal(
+            <div className="fixed inset-0 z-[9998] pointer-events-none">
+              <div
+                className="pointer-events-auto absolute right-2 top-[68px] w-[min(92vw,330px)] rounded-2xl border border-cyan-100/30 bg-slate-950/96 p-4 text-left text-sm text-slate-100 shadow-[0_22px_70px_rgba(0,0,0,0.58)] backdrop-blur-2xl sm:right-6 sm:top-24"
+                role="dialog"
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowHelp(false)}
+                  className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-300"
+                  title="Close install help"
+                >
+                  <X size={15} />
+                </button>
+                <p className="pr-8 text-sm font-black text-cyan-100">Install on mobile</p>
+                <p className="mt-2 text-xs leading-5 text-slate-300">
+                  {isAppleMobile
+                    ? 'Open Safari share menu, then tap Add to Home Screen.'
+                    : 'Open your browser menu and choose Install app or Add to Home screen.'}
+                </p>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
