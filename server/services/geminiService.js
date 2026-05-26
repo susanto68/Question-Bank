@@ -29,6 +29,15 @@ function getBatchTimeoutMs() {
   return Number.isFinite(value) ? Math.min(Math.max(value, 10000), 90000) : 35000;
 }
 
+function getGroqModel() {
+  return process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+}
+
+function getGroqTimeoutMs() {
+  const value = Number(process.env.GROQ_TIMEOUT_MS || 60000);
+  return Number.isFinite(value) ? Math.min(Math.max(value, 15000), 120000) : 60000;
+}
+
 function buildPrompt(payload, count = 100, startId = 1) {
   const endId = startId + count - 1;
 
@@ -64,6 +73,13 @@ JSON schema:
   ]
 }
 `;
+}
+
+function buildGroqUnavailableFallback(payload, count = 100, startId = 1, reason = 'Gemini and Groq were unavailable, so these starter questions were generated locally.') {
+  return {
+    ...buildLocalFallback(payload, count, startId, reason),
+    model: 'local-fallback',
+  };
 }
 
 function getModelNames() {
@@ -235,12 +251,110 @@ async function generateBatch(genAI, modelName, payload, batch) {
   return normalizeGeneratedQuestions(parsed, payload).questions;
 }
 
+async function fetchGroqJson(payload, count = 100, startId = 1, jsonMode = true) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), getGroqTimeoutMs());
+  const body = {
+    model: getGroqModel(),
+    messages: [
+      {
+        role: 'system',
+        content: 'You generate exam question banks. Return only strict JSON that matches the requested schema.',
+      },
+      {
+        role: 'user',
+        content: buildPrompt(payload, count, startId),
+      },
+    ],
+    temperature: 0.45,
+  };
+
+  if (jsonMode) {
+    body.response_format = { type: 'json_object' };
+  }
+
+  try {
+    const response = await fetch(process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const message = data?.error?.message || data?.message || `Groq request failed with status ${response.status}`;
+      const error = new Error(message);
+      error.status = response.status;
+      throw error;
+    }
+
+    return data?.choices?.[0]?.message?.content || '';
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function generateWithGroq(payload, count = 100, startId = 1) {
+  if (!process.env.GROQ_API_KEY) {
+    return null;
+  }
+
+  let text;
+
+  try {
+    text = await fetchGroqJson(payload, count, startId, true);
+  } catch (error) {
+    const message = `${error?.message || ''} ${error?.status || ''}`.toLowerCase();
+
+    if (!message.includes('response_format') && !message.includes('json')) {
+      throw error;
+    }
+
+    text = await fetchGroqJson(payload, count, startId, false);
+  }
+
+  const parsed = parseJson(text);
+  let normalized = normalizeGeneratedQuestions(parsed, payload);
+  let questions = normalized.questions.slice(0, count).map((question, index) => ({
+    ...question,
+    id: startId + index,
+  }));
+
+  if (questions.length < count) {
+    const fallback = buildLocalFallback(
+      payload,
+      count - questions.length,
+      startId + questions.length,
+      'Groq returned fewer questions, so the remaining questions were filled locally.',
+    );
+    questions = [...questions, ...fallback.questions];
+  }
+
+  normalized = {
+    title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
+    ...payload,
+    questions,
+    generatedAt: new Date().toISOString(),
+    cacheable: true,
+    resilient: false,
+    provider: 'groq',
+    model: getGroqModel(),
+  };
+
+  return normalized;
+}
+
 export async function generateQuestions(payload) {
   if (!requireApiKey()) {
-    return {
-      ...buildLocalFallback(payload, 100, 1, 'Gemini API key is not configured, so starter questions are shown locally.'),
-      model: 'local-fallback',
-    };
+    return (
+      (await generateWithGroq(payload, 100, 1).catch(() => null)) ||
+      buildGroqUnavailableFallback(payload, 100, 1, 'Gemini API key is not configured and Groq was unavailable, so starter questions are shown locally.')
+    );
   }
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -270,17 +384,30 @@ export async function generateQuestions(payload) {
         ...question,
         id: index + 1,
       }));
+      let usedLocalFallback = false;
 
       if (questions.length < 100) {
-        const fallback = buildLocalFallback(
-          payload,
-          100 - questions.length,
-          questions.length + 1,
-          questions.length
-            ? 'Some Gemini batches were unavailable, so the remaining questions were filled locally.'
-            : 'Gemini was unavailable, so starter questions are shown locally.',
-        );
-        questions = [...questions, ...fallback.questions];
+        const geminiQuestionCount = questions.length;
+        const groqFallback = await generateWithGroq(payload, 100 - questions.length, questions.length + 1).catch(() => null);
+
+        if (groqFallback?.questions?.length) {
+          if (geminiQuestionCount === 0 && groqFallback.questions.length >= 100) {
+            return groqFallback;
+          }
+
+          questions = [...questions, ...groqFallback.questions].slice(0, 100);
+        } else {
+          usedLocalFallback = true;
+          const fallback = buildLocalFallback(
+            payload,
+            100 - questions.length,
+            questions.length + 1,
+            questions.length
+              ? 'Some Gemini and Groq batches were unavailable, so the remaining questions were filled locally.'
+              : 'Gemini and Groq were unavailable, so starter questions are shown locally.',
+          );
+          questions = [...questions, ...fallback.questions];
+        }
       }
 
       const normalized = {
@@ -288,8 +415,9 @@ export async function generateQuestions(payload) {
         ...payload,
         questions,
         generatedAt: new Date().toISOString(),
-        cacheable: batchErrors.length === 0,
+        cacheable: !usedLocalFallback,
         resilient: batchErrors.length > 0,
+        provider: 'gemini',
       };
 
       return {
@@ -300,16 +428,16 @@ export async function generateQuestions(payload) {
       lastError = error;
 
       if (!shouldTryNextModel(error)) {
-        return {
-          ...buildLocalFallback(payload, 100, 1, 'Gemini had a temporary issue, so starter questions are shown locally.'),
-          model: 'local-fallback',
-        };
+        return (
+          (await generateWithGroq(payload, 100, 1).catch(() => null)) ||
+          buildGroqUnavailableFallback(payload, 100, 1, 'Gemini had a temporary issue and Groq was unavailable, so starter questions are shown locally.')
+        );
       }
     }
   }
 
-  return {
-    ...buildLocalFallback(payload, 100, 1, lastError ? 'Gemini model fallback failed, so starter questions are shown locally.' : undefined),
-    model: 'local-fallback',
-  };
+  return (
+    (await generateWithGroq(payload, 100, 1).catch(() => null)) ||
+    buildGroqUnavailableFallback(payload, 100, 1, lastError ? 'Gemini model fallback failed and Groq was unavailable, so starter questions are shown locally.' : undefined)
+  );
 }

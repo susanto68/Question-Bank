@@ -1,6 +1,6 @@
 # Question-Bank
 
-Modern mobile-first AI Question Bank platform built with React, Vite, TailwindCSS, Express, Firebase Firestore caching, Gemini API, React Router, Zustand, Axios, Framer Motion, and react-window.
+Modern mobile-first AI Question Bank platform built with React, Vite, TailwindCSS, Express, Firebase Firestore/Supabase caching, Gemini API with Groq Llama fallback, React Router, Zustand, Axios, Framer Motion, and react-window.
 
 Flow: Board -> Class -> Subject -> Chapter -> Generate Questions.
 
@@ -8,7 +8,7 @@ Flow: Board -> Class -> Subject -> Chapter -> Generate Questions.
 
 - Supports ICSE, CBSE, State Boards, College, UPSC, JPSC, SSC, Banking, Railway, NEET, and JEE.
 - Generates 100 structured questions with MCQ, short answer, long answer, true/false, assertion-reason, and numerical types.
-- Checks Firestore cache first, then generates from Gemini when cache is blank or missing.
+- Checks Supabase/Firestore cache first, then generates from Gemini when cache is blank or missing. Groq `llama-3.3-70b-versatile` is used as the AI fallback before any local starter set.
 - Mobile-friendly dark glass UI with compact sidebar, 3D gradient buttons, search, print, PDF, and copy options.
 - Supports large scrollable question content, markdown tables, code blocks, and math formulas.
 
@@ -20,7 +20,7 @@ copy .env.example .env
 npm run dev
 ```
 
-Fill `.env` with your real `GEMINI_API_KEY` and Firebase Admin credentials before using live generation and Firestore caching.
+Fill `.env` with your real `GEMINI_API_KEY`, `GROQ_API_KEY`, Supabase, and Firebase Admin credentials before using live generation and caching.
 
 ## Scripts
 
@@ -44,7 +44,7 @@ npm run check     # lint + build
 }
 ```
 
-The API checks Firestore first. Cache hits return immediately. Cache misses generate 100 structured questions with Gemini and save the normalized payload to Firestore.
+The API checks Supabase and Firestore first. Cache hits return immediately. Cache misses generate 100 structured questions with Gemini, use Groq Llama as fallback if needed, and save the normalized payload to Supabase/Firestore.
 
 ## Supabase Comments
 

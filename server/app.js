@@ -32,9 +32,11 @@ export function createApp() {
       ok: true,
       cache: process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_APPLICATION_CREDENTIALS ? 'configured' : 'not-configured',
       gemini: process.env.GEMINI_API_KEY ? 'configured' : 'not-configured',
+      groq: process.env.GROQ_API_KEY ? 'configured' : 'not-configured',
       supabase: isSupabaseConfigured() ? 'configured' : 'not-configured',
       questionCache: isSupabaseQuestionCacheConfigured() ? 'configured' : 'not-configured',
       model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+      fallbackModel: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
     });
   });
 
@@ -80,7 +82,7 @@ export function createApp() {
         }
       }
       res.json({
-        source: generated.model === 'local-fallback' ? 'starter' : 'gemini',
+        source: generated.model === 'local-fallback' ? 'starter' : generated.provider === 'groq' ? 'groq' : 'gemini',
         cacheKey,
         savedToSupabase: supabaseSave.ok,
         supabaseSaveStatus: supabaseSave.ok ? 'saved' : supabaseSave.reason,

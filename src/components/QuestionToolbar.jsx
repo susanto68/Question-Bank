@@ -11,6 +11,8 @@ export default function QuestionToolbar({ result, total }) {
     ? 'Supabase cache'
     : result.savedToSupabase
       ? 'Saved to Supabase'
+      : result.source === 'groq'
+        ? 'Groq Llama'
       : result.source === 'cache'
         ? 'Firestore cache'
         : result.source === 'starter'
