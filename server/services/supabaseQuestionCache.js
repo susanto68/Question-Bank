@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 
 const questionCacheTable = process.env.SUPABASE_QUESTION_CACHE_TABLE || 'question_cache';
 
@@ -24,6 +25,9 @@ function getSupabaseAdmin() {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
+    },
+    realtime: {
+      transport: WebSocket,
     },
   });
   return supabaseAdmin;

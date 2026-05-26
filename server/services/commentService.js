@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 
 const commentsTable = process.env.SUPABASE_COMMENTS_TABLE || 'comments';
 const adminPhone = normalizePhone(process.env.ADMIN_PHONE || '9835379900');
@@ -31,6 +32,9 @@ function getSupabaseAdmin() {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
+    },
+    realtime: {
+      transport: WebSocket,
     },
   });
   return supabaseAdmin;
