@@ -7,6 +7,15 @@ import { useQuestionStore } from '../store/questionStore.js';
 export default function QuestionToolbar({ result, total }) {
   const { query, setQuery } = useQuestionStore();
   const [copied, setCopied] = useState(false);
+  const sourceLabel = result.source === 'supabase'
+    ? 'Supabase cache'
+    : result.savedToSupabase
+      ? 'Saved to Supabase'
+      : result.source === 'cache'
+        ? 'Firestore cache'
+        : result.source === 'starter'
+          ? 'Starter set'
+          : 'Gemini';
 
   async function handleCopy() {
     await copyQuestions(result);
@@ -28,7 +37,7 @@ export default function QuestionToolbar({ result, total }) {
         </label>
         <div className="thin-scrollbar flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2 sm:pb-0">
           <span className="shrink-0 rounded-xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5 px-2.5 py-2 text-[10px] font-bold text-slate-200 sm:px-3 sm:text-xs">
-            {total} shown - {result.source === 'supabase' ? 'Supabase cache' : result.source === 'cache' ? 'Firestore cache' : result.source === 'starter' ? 'Starter set' : 'Gemini'}
+            {total} shown - {sourceLabel}
           </span>
           <button
             type="button"

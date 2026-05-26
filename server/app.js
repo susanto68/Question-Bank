@@ -5,7 +5,7 @@ import express from 'express';
 import { getCachedQuestions, saveQuestionsToCache } from './services/cacheService.js';
 import { createComment, getAdminComments, isSupabaseConfigured, sendAdminOtp, verifyAdminOtp, verifyAdminToken } from './services/commentService.js';
 import { generateQuestions } from './services/geminiService.js';
-import { getSupabaseCachedQuestions, saveSupabaseQuestionCache } from './services/supabaseQuestionCache.js';
+import { getSupabaseCachedQuestions, isSupabaseQuestionCacheConfigured, saveSupabaseQuestionCache } from './services/supabaseQuestionCache.js';
 import { buildCacheKey, normalizePayload } from './utils/questionPayload.js';
 
 dotenv.config();
@@ -33,6 +33,7 @@ export function createApp() {
       cache: process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_APPLICATION_CREDENTIALS ? 'configured' : 'not-configured',
       gemini: process.env.GEMINI_API_KEY ? 'configured' : 'not-configured',
       supabase: isSupabaseConfigured() ? 'configured' : 'not-configured',
+      questionCache: isSupabaseQuestionCacheConfigured() ? 'configured' : 'not-configured',
       model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
     });
   });
@@ -44,24 +45,47 @@ export function createApp() {
       const supabaseCached = await getSupabaseCachedQuestions(cacheKey).catch(() => null);
 
       if (supabaseCached) {
-        res.json({ source: 'supabase', cacheKey, ...supabaseCached });
+        res.json({ source: 'supabase', cacheKey, savedToSupabase: true, ...supabaseCached });
         return;
       }
 
       const cached = await getCachedQuestions(cacheKey);
 
       if (cached) {
-        await saveSupabaseQuestionCache(cacheKey, cached).catch(() => {});
-        res.json({ source: 'cache', cacheKey, ...cached });
+        const supabaseSave = await saveSupabaseQuestionCache(cacheKey, cached);
+        res.json({
+          source: 'cache',
+          cacheKey,
+          savedToSupabase: supabaseSave.ok,
+          supabaseSaveStatus: supabaseSave.ok ? 'saved' : supabaseSave.reason,
+          ...cached,
+        });
         return;
       }
 
       const generated = await generateQuestions(payload);
+      let supabaseSave = { ok: false, reason: 'not-cacheable' };
       if (generated.cacheable !== false) {
-        await saveQuestionsToCache(cacheKey, generated);
-        await saveSupabaseQuestionCache(cacheKey, generated).catch(() => {});
+        const [firestoreResult, supabaseResult] = await Promise.allSettled([
+          saveQuestionsToCache(cacheKey, generated),
+          saveSupabaseQuestionCache(cacheKey, generated),
+        ]);
+
+        supabaseSave = supabaseResult.status === 'fulfilled'
+          ? supabaseResult.value
+          : { ok: false, reason: supabaseResult.reason?.message || 'save-failed' };
+
+        if (firestoreResult.status === 'rejected') {
+          console.warn('Firestore question cache save failed:', firestoreResult.reason?.message || firestoreResult.reason);
+        }
       }
-      res.json({ source: generated.model === 'local-fallback' ? 'starter' : 'gemini', cacheKey, ...generated });
+      res.json({
+        source: generated.model === 'local-fallback' ? 'starter' : 'gemini',
+        cacheKey,
+        savedToSupabase: supabaseSave.ok,
+        supabaseSaveStatus: supabaseSave.ok ? 'saved' : supabaseSave.reason,
+        ...generated,
+      });
     } catch (error) {
       next(error);
     }

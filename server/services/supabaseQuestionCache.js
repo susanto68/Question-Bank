@@ -29,6 +29,10 @@ function getSupabaseAdmin() {
   return supabaseAdmin;
 }
 
+export function isSupabaseQuestionCacheConfigured() {
+  return Boolean(getSupabaseUrl() && process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+
 function isMissingTable(error) {
   return error?.message?.includes(`'public.${questionCacheTable}'`) || error?.message?.includes('schema cache');
 }
@@ -74,7 +78,10 @@ export async function saveSupabaseQuestionCache(cacheKey, payload) {
   const supabase = getSupabaseAdmin();
 
   if (!supabase || !Array.isArray(payload?.questions) || payload.questions.length === 0) {
-    return;
+    return {
+      ok: false,
+      reason: !supabase ? 'not-configured' : 'empty-questions',
+    };
   }
 
   const row = {
@@ -92,7 +99,21 @@ export async function saveSupabaseQuestionCache(cacheKey, payload) {
 
   const { error } = await supabase.from(questionCacheTable).upsert(row, { onConflict: 'cache_key' });
 
-  if (error && !isMissingTable(error)) {
-    throw error;
+  if (error) {
+    if (isMissingTable(error)) {
+      return {
+        ok: false,
+        reason: 'missing-table',
+      };
+    }
+
+    return {
+      ok: false,
+      reason: error.message || 'save-failed',
+    };
   }
+
+  return {
+    ok: true,
+  };
 }
