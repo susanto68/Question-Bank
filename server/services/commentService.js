@@ -81,6 +81,14 @@ function assertAdminPhone(phone) {
   }
 }
 
+function getFallbackAdminOtp() {
+  return cleanText(process.env.ADMIN_OTP_CODE, 12);
+}
+
+function isUnsupportedPhoneProvider(error) {
+  return String(error?.message || '').toLowerCase().includes('unsupported phone provider');
+}
+
 function handleCommentsTableError(error) {
   if (error.message?.includes(`'public.${commentsTable}'`) || error.message?.includes('schema cache')) {
     throw makeError(`Supabase table public.${commentsTable} is missing. Run supabase/comments.sql in the Supabase SQL Editor.`, 500);
@@ -110,6 +118,14 @@ export async function sendAdminOtp(phone) {
   });
 
   if (error) {
+    if (isUnsupportedPhoneProvider(error)) {
+      if (getFallbackAdminOtp()) {
+        return { sent: true, fallback: true };
+      }
+
+      throw makeError('Supabase phone OTP is not enabled. Add ADMIN_OTP_CODE in server environment or enable a Supabase phone provider.', 500);
+    }
+
     throw makeError(error.message, error.status || 500);
   }
 
@@ -123,6 +139,15 @@ export async function verifyAdminOtp(phone, token) {
 
   if (!cleanToken) {
     throw makeError('OTP is required.');
+  }
+
+  const fallbackAdminOtp = getFallbackAdminOtp();
+
+  if (fallbackAdminOtp && cleanToken === fallbackAdminOtp) {
+    return {
+      id: 'fallback-admin',
+      phone: `+91${adminPhone}`,
+    };
   }
 
   const supabase = getSupabaseAdmin();

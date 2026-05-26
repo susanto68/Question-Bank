@@ -142,9 +142,9 @@ function AdminPanel({ onClose }) {
     setLoading(true);
 
     try {
-      await sendAdminOtp(phone);
+      const result = await sendAdminOtp(phone);
       setStep('otp');
-      setStatus('OTP sent to admin phone.');
+      setStatus(result.fallback ? 'SMS is not enabled. Enter your private admin OTP.' : 'OTP sent to admin phone.');
     } catch (error) {
       setStatus(error.response?.data?.error || error.message || 'Could not send OTP.');
     } finally {
