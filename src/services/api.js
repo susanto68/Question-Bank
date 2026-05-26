@@ -28,3 +28,13 @@ export async function getAdminComments(accessToken) {
   });
   return data;
 }
+
+export async function sendAdminOtp(phone) {
+  const { data } = await api.post('/api/comments/admin/send-otp', { phone });
+  return data;
+}
+
+export async function verifyAdminOtp(phone, otp) {
+  const { data } = await api.post('/api/comments/admin/verify-otp', { phone, otp });
+  return data;
+}

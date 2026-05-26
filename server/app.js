@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 
 import { getCachedQuestions, saveQuestionsToCache } from './services/cacheService.js';
-import { createComment, getAdminComments, isSupabaseConfigured, verifyAdminToken } from './services/commentService.js';
+import { createComment, getAdminComments, isSupabaseConfigured, sendAdminOtp, verifyAdminOtp, verifyAdminToken } from './services/commentService.js';
 import { generateQuestions } from './services/geminiService.js';
 import { buildCacheKey, normalizePayload } from './utils/questionPayload.js';
 
@@ -61,6 +61,25 @@ export function createApp() {
     try {
       const comment = await createComment(req.body);
       res.status(201).json({ ok: true, comment });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/comments/admin/send-otp', async (req, res, next) => {
+    try {
+      const result = await sendAdminOtp(req.body.phone);
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/comments/admin/verify-otp', async (req, res, next) => {
+    try {
+      await verifyAdminOtp(req.body.phone, req.body.otp);
+      const comments = await getAdminComments();
+      res.json({ ok: true, comments });
     } catch (error) {
       next(error);
     }

@@ -71,20 +71,74 @@ function normalizeCommentPayload(body) {
   return payload;
 }
 
+function assertAdminPhone(phone) {
+  if (normalizePhone(phone) !== adminPhone) {
+    throw makeError('it for Admin only', 403);
+  }
+}
+
+function handleCommentsTableError(error) {
+  if (error.message?.includes(`'public.${commentsTable}'`) || error.message?.includes('schema cache')) {
+    throw makeError(`Supabase table public.${commentsTable} is missing. Run supabase/comments.sql in the Supabase SQL Editor.`, 500);
+  }
+
+  throw makeError(error.message, 500);
+}
+
 export async function createComment(body) {
   const payload = normalizeCommentPayload(body);
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.from(commentsTable).insert(payload).select('*').single();
 
   if (error) {
-    if (error.message?.includes(`'public.${commentsTable}'`) || error.message?.includes('schema cache')) {
-      throw makeError(`Supabase table public.${commentsTable} is missing. Run supabase/comments.sql in the Supabase SQL Editor.`, 500);
-    }
-
-    throw makeError(error.message, 500);
+    handleCommentsTableError(error);
   }
 
   return data;
+}
+
+export async function sendAdminOtp(phone) {
+  assertAdminPhone(phone);
+
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase.auth.signInWithOtp({
+    phone: `+91${adminPhone}`,
+  });
+
+  if (error) {
+    throw makeError(error.message, error.status || 500);
+  }
+
+  return { sent: true };
+}
+
+export async function verifyAdminOtp(phone, token) {
+  assertAdminPhone(phone);
+
+  const cleanToken = cleanText(token, 12);
+
+  if (!cleanToken) {
+    throw makeError('OTP is required.');
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.auth.verifyOtp({
+    phone: `+91${adminPhone}`,
+    token: cleanToken,
+    type: 'sms',
+  });
+
+  if (error) {
+    throw makeError(error.message, error.status || 401);
+  }
+
+  const verifiedPhone = normalizePhone(data?.user?.phone || data?.user?.user_metadata?.phone);
+
+  if (verifiedPhone !== adminPhone) {
+    throw makeError('it for Admin only', 403);
+  }
+
+  return data.user;
 }
 
 export async function verifyAdminToken(token) {
@@ -113,11 +167,7 @@ export async function getAdminComments() {
   const { data, error } = await supabase.from(commentsTable).select('*').order('created_at', { ascending: false }).limit(200);
 
   if (error) {
-    if (error.message?.includes(`'public.${commentsTable}'`) || error.message?.includes('schema cache')) {
-      throw makeError(`Supabase table public.${commentsTable} is missing. Run supabase/comments.sql in the Supabase SQL Editor.`, 500);
-    }
-
-    throw makeError(error.message, 500);
+    handleCommentsTableError(error);
   }
 
   return data || [];

@@ -5,8 +5,7 @@ import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 
 import { boards } from '../data/catalog.js';
-import { getAdminComments, submitComment } from '../services/api.js';
-import { isSupabaseAuthReady, supabaseAuth } from '../services/supabaseClient.js';
+import { sendAdminOtp, submitComment, verifyAdminOtp } from '../services/api.js';
 
 const adminPhone = '9835379900';
 
@@ -140,22 +139,17 @@ function AdminPanel({ onClose }) {
       return;
     }
 
-    if (!isSupabaseAuthReady) {
-      setStatus('Supabase OTP is not configured.');
-      return;
-    }
-
     setLoading(true);
-    const { error } = await supabaseAuth.auth.signInWithOtp({ phone: `+91${adminPhone}` });
-    setLoading(false);
 
-    if (error) {
-      setStatus(error.message);
-      return;
+    try {
+      await sendAdminOtp(phone);
+      setStep('otp');
+      setStatus('OTP sent to admin phone.');
+    } catch (error) {
+      setStatus(error.response?.data?.error || error.message || 'Could not send OTP.');
+    } finally {
+      setLoading(false);
     }
-
-    setStep('otp');
-    setStatus('OTP sent to admin phone.');
   }
 
   async function verifyOtp(event) {
@@ -163,20 +157,8 @@ function AdminPanel({ onClose }) {
     setLoading(true);
     setStatus('');
 
-    const { data, error } = await supabaseAuth.auth.verifyOtp({
-      phone: `+91${adminPhone}`,
-      token: otp,
-      type: 'sms',
-    });
-
-    if (error) {
-      setLoading(false);
-      setStatus(error.message);
-      return;
-    }
-
     try {
-      const result = await getAdminComments(data.session.access_token);
+      const result = await verifyAdminOtp(phone, otp);
       setComments(result.comments || []);
       setStep('comments');
     } catch (requestError) {
