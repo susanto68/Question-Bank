@@ -65,7 +65,7 @@ export default function InstallButton() {
         type="button"
         onClick={handleInstall}
         title={installed ? 'App installed' : 'Install app'}
-        className="group inline-flex h-10 items-center gap-1.5 rounded-xl border border-cyan-100/25 bg-gradient-to-br from-cyan-300 via-sky-400 to-violet-400 px-3 text-xs font-black text-slate-950 shadow-[0_7px_0_rgba(15,23,42,0.8),0_16px_30px_rgba(56,189,248,0.28)] transition duration-200 hover:-translate-y-0.5 active:translate-y-1 active:shadow-[0_3px_0_rgba(15,23,42,0.85),0_8px_18px_rgba(56,189,248,0.18)] sm:h-11 sm:px-4"
+        className="group inline-flex h-11 w-11 items-center justify-center gap-1.5 rounded-xl border border-cyan-100/25 bg-gradient-to-br from-cyan-300 via-sky-400 to-violet-400 text-xs font-black text-slate-950 shadow-[0_7px_0_rgba(15,23,42,0.8),0_16px_30px_rgba(56,189,248,0.28)] transition duration-200 hover:-translate-y-0.5 active:translate-y-1 active:shadow-[0_3px_0_rgba(15,23,42,0.85),0_8px_18px_rgba(56,189,248,0.18)] sm:w-auto sm:px-4"
       >
         {installed ? <Smartphone size={16} /> : <Download size={16} className="animate-bounce-soft" />}
         <span className="hidden sm:inline">{installed ? 'Installed' : 'Install'}</span>

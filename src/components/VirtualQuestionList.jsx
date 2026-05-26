@@ -18,7 +18,7 @@ export default function VirtualQuestionList({ questions }) {
           className="virtual-scroll"
           height={height}
           itemCount={questions.length}
-          itemSize={width < 640 ? 326 : 372}
+          itemSize={width < 640 ? 346 : 372}
           width={width}
           overscanCount={6}
         >

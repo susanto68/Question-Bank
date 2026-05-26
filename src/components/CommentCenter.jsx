@@ -246,7 +246,7 @@ export default function CommentCenter() {
           transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
         >
           <MessageSquare size={17} />
-          <span>Comment</span>
+          <span className="hidden sm:inline">Comment</span>
         </motion.button>
         {showAdminButton ? (
           <button

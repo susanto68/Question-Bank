@@ -29,7 +29,7 @@ export default function AppShell() {
 
   return (
     <div className="flex h-dvh w-full overflow-hidden">
-      <aside className="no-print flex w-[58px] shrink-0 flex-col items-center gap-2 border-r border-white/10 bg-slate-950/45 px-2 py-2 backdrop-blur-2xl sm:w-[76px] sm:gap-3 sm:py-3">
+      <aside className="no-print hidden w-[76px] shrink-0 flex-col items-center gap-3 border-r border-white/10 bg-slate-950/45 px-2 py-3 backdrop-blur-2xl sm:flex">
         <button
           type="button"
           onClick={() => navigate('/')}
@@ -52,9 +52,9 @@ export default function AppShell() {
       </aside>
 
       <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="no-print flex min-h-[68px] shrink-0 items-center justify-between gap-2 border-b border-white/10 px-2.5 py-2 backdrop-blur-xl sm:min-h-20 sm:px-6 sm:py-3">
+        <header className="no-print flex min-h-[60px] shrink-0 items-center justify-between gap-1.5 border-b border-white/10 bg-slate-950/18 px-2 py-2 backdrop-blur-xl sm:min-h-20 sm:gap-2 sm:px-6 sm:py-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            <div className="relative h-11 w-11 shrink-0 rounded-2xl bg-gradient-to-br from-cyan-300 via-emerald-300 to-amber-300 p-[2px] shadow-[0_8px_0_rgba(2,6,23,0.65),0_16px_32px_rgba(34,211,238,0.18)] sm:h-16 sm:w-16 sm:shadow-[0_10px_0_rgba(2,6,23,0.65),0_22px_42px_rgba(34,211,238,0.18)]">
+            <div className="relative h-10 w-10 shrink-0 rounded-2xl bg-gradient-to-br from-cyan-300 via-emerald-300 to-amber-300 p-[2px] shadow-[0_6px_0_rgba(2,6,23,0.65),0_13px_26px_rgba(34,211,238,0.18)] sm:h-16 sm:w-16 sm:shadow-[0_10px_0_rgba(2,6,23,0.65),0_22px_42px_rgba(34,211,238,0.18)]">
               <img
                 src="/susanto-ganguly.png"
                 alt="Susanto Ganguly"
@@ -65,12 +65,12 @@ export default function AppShell() {
               </div>
             </div>
             <div className="min-w-0">
-              <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-cyan-200 sm:text-[11px] sm:tracking-[0.18em]">Susanto Ganguly</p>
-              <h1 className="truncate text-sm font-black tracking-normal sm:text-2xl">AI Question Bank</h1>
+              <p className="text-[8px] font-bold uppercase tracking-[0.11em] text-cyan-200 sm:text-[11px] sm:tracking-[0.18em]">Susanto Ganguly</p>
+              <h1 className="truncate text-[15px] font-black tracking-normal leading-5 sm:text-2xl">AI Question Bank</h1>
               <p className="hidden truncate text-xs text-slate-400 sm:block">Smart board-wise question generator</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <div className="hidden items-center gap-2 text-xs text-slate-300 lg:flex">
               <span className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
                 <BookOpen size={14} /> 100 Questions
@@ -86,10 +86,31 @@ export default function AppShell() {
         </header>
 
         <div className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-5">
-          <div className="glass h-full overflow-hidden rounded-2xl sm:rounded-xl">
+          <div className="glass h-full overflow-hidden rounded-[18px] sm:rounded-xl">
             <Outlet />
           </div>
         </div>
+
+        <nav className="no-print flex h-[58px] shrink-0 items-center gap-1.5 border-t border-white/10 bg-slate-950/55 px-2 py-1.5 backdrop-blur-2xl sm:hidden">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            title="Home"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-gradient-to-br from-slate-700 to-slate-950 text-cyan-100 shadow-[0_5px_0_rgba(2,6,23,0.75)] active:translate-y-1"
+          >
+            <Home size={18} />
+          </button>
+          <div className="thin-scrollbar flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-1">
+            {boards.map((board) => (
+              <SidebarButton
+                key={board.id}
+                board={board}
+                active={activeBoard?.id === board.id}
+                onClick={() => navigate(`/board/${board.id}`)}
+              />
+            ))}
+          </div>
+        </nav>
       </main>
     </div>
   );

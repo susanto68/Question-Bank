@@ -23,10 +23,11 @@ body {
   min-width: 320px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 8% 10%, rgba(45, 212, 191, 0.22), transparent 28rem),
-    radial-gradient(circle at 82% 14%, rgba(251, 113, 133, 0.2), transparent 24rem),
-    radial-gradient(circle at 58% 92%, rgba(250, 204, 21, 0.16), transparent 26rem),
-    linear-gradient(135deg, #050816 0%, #07111f 38%, #181129 72%, #071a16 100%);
+    radial-gradient(circle at 8% 10%, rgba(45, 212, 191, 0.28), transparent 28rem),
+    radial-gradient(circle at 82% 14%, rgba(251, 113, 133, 0.24), transparent 24rem),
+    radial-gradient(circle at 58% 92%, rgba(250, 204, 21, 0.2), transparent 26rem),
+    radial-gradient(circle at 0% 90%, rgba(129, 140, 248, 0.16), transparent 18rem),
+    linear-gradient(135deg, #050816 0%, #07111f 34%, #181129 68%, #071a16 100%);
   color: #f8fafc;
 }
 
