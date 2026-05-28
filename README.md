@@ -1,77 +1,179 @@
-# Question-Bank
+# AI-Powered Question Bank & Mock Test Ecosystem
 
-Modern mobile-first AI Question Bank platform built with React, Vite, TailwindCSS, Express, Firebase Firestore/Supabase caching, Gemini API with Groq Llama fallback, React Router, Zustand, Axios, Framer Motion, and react-window.
+A premium, cinematic, production-ready AI educational ecosystem built on Next.js App Router, TypeScript, Tailwind CSS, Framer Motion, Supabase PostgreSQL, and Firebase Authentication. Designed to be highly scalable and reusable for future educational modules.
 
-Flow: Board -> Class -> Subject -> Chapter -> Generate Questions.
+---
 
-## Features
+## 🚀 Key Features
 
-- Supports ICSE, CBSE, State Boards, College, UPSC, JPSC, SSC, Banking, Railway, NEET, and JEE.
-- Generates 100 structured questions with MCQ, short answer, long answer, true/false, assertion-reason, and numerical types.
-- Checks Supabase/Firestore cache first, then generates from Gemini when cache is blank or missing. Groq `llama-3.3-70b-versatile` is used as the AI fallback before any local starter set.
-- Mobile-friendly dark glass UI with compact sidebar, 3D gradient buttons, search, print, PDF, and copy options.
-- Supports large scrollable question content, markdown tables, code blocks, and math formulas.
+1. **Student Authentication (Firebase):** Secured by Firebase Auth supporting Google Login, Email/Password flows, session persistence, and secure token verification.
+2. **Student Onboarding Flow:** Complete profile registration system capturing student curriculum boundaries (Board, Class, Subject) persisted permanently in Supabase.
+3. **Database-First AI Caching:** Highly optimized architecture designed to reduce API consumption by 75–95%. Searches Supabase question_bank cache first, fallback to AI generation only on cache misses.
+4. **Interactive Question Bank:** Comprehensive sidebar board lists and selection pages covering major curriculum frameworks (ICSE, CBSE, College, UPSC, Competitive Exams) with instant search, copy, and print-ready options.
+5. **Mock Test Engine:** Dynamic 10-question evaluation engine with option shuffling, strict MCQ grading, self-grading write-ins, and automated certificate thresholds.
+6. **Futuristic Certificate Generator:** Downloadable premium gold-bordered completion certificates powered by html2canvas, jsPDF, and animated celebration confetti.
+7. **Visual Analytics Dashboard:** Detailed dashboard summarizing average test scores, earned certificates, conceptual strengths/weaknesses, and attempt lists.
+8. **Mobile-First Glassmorphic Design:** Smooth micro-animations, particles, cinematic radial gradient layers, and fully responsive navigation drawers.
 
-## Setup
+---
 
-```bash
-npm install
-copy .env.example .env
-npm run dev
+## 📁 Repository Structure
+
+```
+/src
+  /app
+    /api
+      /questions
+        route.ts            # Database-first AI-second Question API endpoint
+      /comments
+        /admin
+          /send-otp
+            route.ts        # Admin login SMS trigger / fallback API
+          /verify-otp
+            route.ts        # OTP validation and comments fetcher
+        route.ts            # Comment submission and admin listing endpoint
+    /board
+      /[[...slug]]
+        page.tsx            # Dynamic selection grids and question bank page
+    /certificate
+      /[certificateId]
+        page.tsx            # Confetti & gold-border downloadable certificates
+    /dashboard
+      page.tsx              # Analytics dashboard, attempts table, certificate listings
+    /mock-test
+      page.tsx              # Test quiz engine with timer and grading
+    /register
+      page.tsx              # Onboarding syllabus registration form
+    layout.tsx              # Root Layout, head metadata, and global Auth state
+    globals.css             # Cinematic gradients, scrollbars, and markdown tables CSS
+  /components
+    AppShell.tsx            # Interactive navigation drawer, headers, PWA buttons
+    CommentCenter.tsx       # Live comment drawers and OTP panels
+    InstallButton.tsx       # PWA mobile installation modal
+    EmptyState.tsx          # Reusable empty placeholder
+    LoadingState.tsx        # Reusable Framer Motion spin loaders
+    QuestionCard.tsx        # Math-enabled question presentation card
+    QuestionList.tsx        # Smooth natural vertical list flow
+    QuestionToolbar.tsx     # Search filtering and print/copy exports
+    SelectionGrid.tsx       # Hover-active motion cards
+    StepHeader.tsx          # Breadcrumb router headers
+  /data
+    catalog.ts              # TS curriculum database (ICSE, CBSE, Chapters, etc.)
+    fallbackQuestions.ts    # Perception-enhancing starter sets
+  /lib
+    /firebase
+      client.ts             # Firebase client SDK auth config
+      admin.ts              # Firebase server-side Admin SDK config
+    /supabase
+      client.ts             # Supabase client SDK integration
+      admin.ts              # Supabase server-side Admin SDK config
+  /services
+    ai.ts                   # Gemini generation, batching, and Groq fallback service
+    api.ts                  # Client fetch calls for comments and admin OTPs
+  /utils
+    exportQuestions.ts      # Print and copy clipboard exports
+/public                     # susanto-ganguly.png, PWA manifests, PWA icons
+/supabase
+  schema.sql                # Production database schema definitions (RLS, indexes)
 ```
 
-Fill `.env` with your real `GEMINI_API_KEY`, `GROQ_API_KEY`, Supabase, and Firebase Admin credentials before using live generation and caching.
+---
 
-## Scripts
+## 🗄️ Database Architecture (Supabase)
 
-```bash
-npm run dev       # React + Express in development
-npm run build     # production client build
-npm start         # Express API server
-npm run check     # lint + build
-```
+The platform is designed around a relational database model in Supabase. The primary tables include:
 
-## API
+1. **`students`**: Stores basic credentials linked to the student's unique Firebase UID.
+2. **`question_bank`**: Primary repository for all structured generated questions. Serves as the AI cash layer, containing normalized question hashes for fast searches.
+3. **`mock_tests`**: Keeps records of all mock test durations, scores, and syllabus categories.
+4. **`mock_questions`**: Fine-grained mapping of question choices and correctness within a mock test.
+5. **`certificates`**: Secure issue ledger mapping unique certificate achievements.
+6. **`user_sessions`**: Tracks student login activity.
+7. **`analytics_events`**: Record of student interface engagements (e.g. pages viewed, mock test triggers).
 
-`POST /api/questions/generate`
+All tables are secured by Row Level Security (RLS) policies allowing read access to authenticated students and write operations to the Next.js backend using a service role key.
 
-```json
-{
-  "board": "ICSE",
-  "className": "Class 10",
-  "subject": "Computer Applications",
-  "chapter": "Arrays"
-}
-```
+---
 
-The API checks Supabase and Firestore first. Cache hits return immediately. Cache misses generate 100 structured questions with Gemini, use Groq Llama as fallback if needed, and save the normalized payload to Supabase/Firestore.
+## 🛠️ Setup Instructions
 
-## Supabase Comments
+### 1. Firebase Authentication Setup
+1. Create a new project in the [Firebase Console](https://console.firebase.google.com/).
+2. Navigate to **Build > Authentication**, enable **Email/Password** and **Google Sign-In**.
+3. Go to Project Settings, add a Web App, and copy the client credentials:
+   `apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`.
+4. Navigate to Project Settings > **Service Accounts**, click **Generate New Private Key**. Save the JSON file for server environment configurations.
 
-Add these environment variables in Vercel:
+### 2. Supabase Setup
+1. Create a new project in the [Supabase Dashboard](https://supabase.com).
+2. Go to the SQL Editor.
+3. Open `supabase/schema.sql` from this codebase, copy the queries, paste, and click **Run** to set up tables, indexes, and RLS policies.
+4. Copy the API keys from Project Settings > **API**: `Project URL` and `service_role` key.
+
+### 3. Environment Variables Config (`.env` / Vercel)
+Add the following keys to your deployment or local `.env` file:
 
 ```env
+# General
+NODE_ENV=production
+
+# Client Firebase Credentials
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_client_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_client_auth_domain
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_firebase_client_storage_bucket
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_firebase_client_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_client_app_id
+
+# Server Firebase Admin Credentials
+FIREBASE_PROJECT_ID=your_firebase_project_id
+FIREBASE_CLIENT_EMAIL=your_firebase_admin_client_email
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----\n"
+
+# Client Supabase Credentials
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_client_key
+
+# Server Supabase Credentials
 SUPABASE_URL=your_supabase_project_url
-SUPABASE_SERVICE_ROLE_KEY=your_server_only_service_role_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_server_service_role_key
 SUPABASE_COMMENTS_TABLE=comments
-SUPABASE_QUESTION_CACHE_TABLE=question_cache
+
+# AI API Configurations
+GEMINI_API_KEY=your_google_gemini_api_key
+GEMINI_MODEL=gemini-2.0-flash
+GEMINI_FALLBACK_MODELS=gemini-2.0-flash,gemini-2.5-flash,gemini-1.5-flash-latest
+GEMINI_BATCH_SIZE=20
+GEMINI_BATCH_CONCURRENCY=2
+GEMINI_BATCH_TIMEOUT_MS=35000
+
+# Fallback AI (Groq)
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_TIMEOUT_MS=60000
+
+# Comments Admin Access
 ADMIN_PHONE=9835379900
+ADMIN_OTP_CODE=select_a_private_passcode_for_admin_login_without_sms
 ```
 
-Create the comments and question-cache tables in Supabase by running `supabase/comments.sql` and `supabase/question_cache.sql` in the Supabase SQL Editor.
+---
 
-Comments table:
+## ⚡ Vercel Deployment Steps
 
-```sql
-create table if not exists public.comments (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  phone text not null,
-  board text not null,
-  comment text not null,
-  page_path text,
-  created_at timestamptz not null default now()
-);
-```
+1. Install Vercel CLI locally or connect your GitHub repository directly in the [Vercel Dashboard](https://vercel.com).
+2. Create a new project, select the import path corresponding to this repository.
+3. Configure the framework preset as **Next.js**.
+4. Paste all variables from your local `.env` into the **Environment Variables** panel in Project Settings. Ensure `FIREBASE_PRIVATE_KEY` wraps the newlines correctly.
+5. Click **Deploy**. Vercel will build the bundle, compile types, and serve the application globally.
 
-Enable phone OTP in Supabase Auth for admin comment viewing. Only the verified admin phone `9835379900` can read submitted comments.
+---
+
+## 📋 Production Deployment Checklist
+
+- [ ] Firebase Email/Password and Google Authentication active in Firebase Console.
+- [ ] Supabase database schemas generated cleanly with zero table conflict warnings.
+- [ ] Supabase Row Level Security (RLS) policies successfully turned ON.
+- [ ] Vercel environmental credentials synchronized and verified.
+- [ ] SSL domain secure routing mapped in Vercel settings.
+- [ ] Local build test completes with zero TypeScript type failures.

@@ -1,20 +1,43 @@
-node_modules
-dist
-.env
-.env.local
-firebase-service-account.json
-*.log
-npm-debug.log*
-.DS_Store
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-.vscode/
-.alcache/
-.alpackages/
-.snapshots/
-.output/
-*.app
-rad.json
-*.g.xlf
-*.bclicense
-*.flf
-TestResults.xml
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dev-server.*.log
+dev-server.*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
