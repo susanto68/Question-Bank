@@ -93,11 +93,21 @@ export function normalizeGeneratedQuestions(parsed: any, payload: QuestionPayloa
   };
 }
 
-function buildPrompt(payload: QuestionPayload, count = 100, startId = 1): string {
+function buildPrompt(payload: QuestionPayload, count = 100, startId = 1, context?: string): string {
   const endId = startId + count - 1;
+  let contextSection = '';
+  
+  if (context) {
+    contextSection = `
+Reference Database Context:
+The following are representative questions of the same board, class, and subject already saved in the database. Analyze their style, difficulty, explanations, and formatting, and generate new unique questions matching this quality:
+${context}
+`;
+  }
 
   return `
 Generate exactly ${count} ${payload.board} ${payload.className} ${payload.subject} questions on ${payload.chapter}.
+${contextSection}
 
 Requirements:
 - Question IDs must start at ${startId} and end at ${endId}.
@@ -237,11 +247,11 @@ export function buildLocalFallback(payload: QuestionPayload, count = 100, startI
   };
 }
 
-async function fetchGroqJson(payload: QuestionPayload, count = 100, startId = 1, jsonMode = true): Promise<string> {
+async function fetchGroqJson(payload: QuestionPayload, count = 100, startId = 1, jsonMode = true, context?: string): Promise<string> {
   const timeoutMs = Number(process.env.GROQ_TIMEOUT_MS || 60000);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  const model = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
   
   const body: any = {
     model,
@@ -252,7 +262,7 @@ async function fetchGroqJson(payload: QuestionPayload, count = 100, startId = 1,
       },
       {
         role: 'user',
-        content: buildPrompt(payload, count, startId),
+        content: buildPrompt(payload, count, startId, context),
       },
     ],
     temperature: 0.45,
@@ -291,15 +301,119 @@ async function generateWithGroq(payload: QuestionPayload, count = 100, startId =
     return null;
   }
 
+  // STEP 1: Generate Search Query Keywords
+  let searchQuery = '';
+  try {
+    const searchPrompt = `Generate a concise search query (3-5 keywords) to find syllabus-aligned learning materials, core topics, and important exam questions for the following curriculum:
+    Board: ${payload.board}
+    Class: ${payload.className}
+    Subject: ${payload.subject}
+    Chapter: ${payload.chapter}
+    
+    Return only the search query keywords, nothing else.`;
+
+    const searchBody = {
+      model: 'llama-3.1-8b-instant',
+      messages: [
+        {
+          role: 'system',
+          content: 'You generate search queries for curriculum topics. Return only the keywords.',
+        },
+        {
+          role: 'user',
+          content: searchPrompt,
+        },
+      ],
+      temperature: 0.1,
+    };
+
+    const searchResponse = await fetch(process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(searchBody),
+    });
+
+    if (searchResponse.ok) {
+      const searchData = await searchResponse.json().catch(() => ({}));
+      searchQuery = (searchData?.choices?.[0]?.message?.content || '').trim();
+      console.log('Search-First Query Generated:', searchQuery);
+    }
+  } catch (e) {
+    console.warn('Search query generation failed, proceeding with direct search...', e);
+  }
+
+  // STEP 2: Retrieve Context from Database (ilike search or board/class/subject matches)
+  let dbContext = '';
+  try {
+    const supabaseAdmin = (await import('@/lib/supabase/admin')).default;
+    let query = supabaseAdmin
+      .from('question_bank')
+      .select('type, difficulty, question, options, answer, explanation')
+      .eq('board', payload.board)
+      .eq('class_name', payload.className)
+      .eq('subject', payload.subject);
+
+    // If keywords exist, try ilike search on question field, otherwise pull general reference questions
+    if (searchQuery) {
+      const firstKeyword = searchQuery.split(' ')[0] || '';
+      if (firstKeyword.length > 2) {
+        query = query.ilike('question', `%${firstKeyword}%`);
+      }
+    }
+
+    const { data: dbQuestions } = await query.limit(5);
+
+    if (dbQuestions && dbQuestions.length > 0) {
+      dbContext = dbQuestions.map((q, idx) => 
+        `Reference Question ${idx + 1}:
+        Type: ${q.type}
+        Difficulty: ${q.difficulty}
+        Question: ${q.question}
+        Options: ${JSON.stringify(q.options)}
+        Answer: ${q.answer}
+        Explanation: ${q.explanation}`
+      ).join('\n\n');
+      console.log(`Search-First Context Retrieved: Found ${dbQuestions.length} reference questions.`);
+    } else {
+      // General fallback lookup if ilike filter returned zero matches
+      const { data: generalQuestions } = await supabaseAdmin
+        .from('question_bank')
+        .select('type, difficulty, question, options, answer, explanation')
+        .eq('board', payload.board)
+        .eq('class_name', payload.className)
+        .eq('subject', payload.subject)
+        .limit(3);
+
+      if (generalQuestions && generalQuestions.length > 0) {
+        dbContext = generalQuestions.map((q, idx) => 
+          `Reference Question ${idx + 1}:
+          Type: ${q.type}
+          Difficulty: ${q.difficulty}
+          Question: ${q.question}
+          Options: ${JSON.stringify(q.options)}
+          Answer: ${q.answer}
+          Explanation: ${q.explanation}`
+        ).join('\n\n');
+        console.log(`Search-First Context Fallback: Found ${generalQuestions.length} reference questions.`);
+      }
+    }
+  } catch (dbErr) {
+    console.warn('Database reference context retrieval failed:', dbErr);
+  }
+
+  // STEP 3: Pipe context into final Llama 3.1 8B generation
   let text;
   try {
-    text = await fetchGroqJson(payload, count, startId, true);
+    text = await fetchGroqJson(payload, count, startId, true, dbContext);
   } catch (error: any) {
     const message = `${error?.message || ''}`.toLowerCase();
     if (!message.includes('response_format') && !message.includes('json')) {
       throw error;
     }
-    text = await fetchGroqJson(payload, count, startId, false);
+    text = await fetchGroqJson(payload, count, startId, false, dbContext);
   }
 
   const parsed = parseJson(text);
@@ -326,7 +440,7 @@ async function generateWithGroq(payload: QuestionPayload, count = 100, startId =
     cacheable: true,
     resilient: false,
     provider: 'groq',
-    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+    model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
   };
 }
 
