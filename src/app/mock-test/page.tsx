@@ -194,44 +194,27 @@ function MockTestEngineInner() {
     setErrorMsg('');
 
     try {
-      let { data, error } = await supabase
-        .from('question_bank')
-        .select('*')
-        .eq('board', activeBoard)
-        .eq('class_name', activeClass)
-        .eq('subject', activeSubject);
+      let genResponse = await fetch('/api/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          board: activeBoard,
+          className: activeClass,
+          subject: activeSubject,
+          chapter: 'General Syllabus Comprehensive Review'
+        })
+      });
 
-      if (error) throw error;
+      if (!genResponse.ok) {
+        const errData = await genResponse.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to retrieve mock test questions from the AI engine.');
+      }
 
-      let testQuestions = data || [];
+      const genResult = await genResponse.json();
+      const testQuestions = genResult.questions || [];
 
-      // If cache miss or insufficient questions, automatically trigger AI question generator!
       if (testQuestions.length < 5) {
-        setLoadingQuestions(true);
-        setErrorMsg('AI is generating dynamic mock test questions for your syllabus on the fly. Please wait up to 10 seconds...');
-        
-        const genResponse = await fetch('/api/questions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            board: activeBoard,
-            className: activeClass,
-            subject: activeSubject,
-            chapter: 'General Syllabus Comprehensive Review'
-          })
-        });
-
-        if (!genResponse.ok) {
-          throw new Error('Failed to generate mock test questions automatically. Please try again.');
-        }
-
-        const genResult = await genResponse.json();
-        if (genResult.questions && genResult.questions.length >= 5) {
-          testQuestions = genResult.questions;
-          setErrorMsg('');
-        } else {
-          throw new Error('Failed to retrieve sufficient mock test questions from the AI engine.');
-        }
+        throw new Error('Insufficient questions returned for this curriculum. Please try again.');
       }
 
       // Filter for Easy difficulty questions if possible to align with requested easy parameter, fallback to others
@@ -273,17 +256,46 @@ function MockTestEngineInner() {
   const handleFinishTest = async () => {
     setTestFinished(true);
 
-    // Calculate score out of 5
+    // Smart multi-paradigm grading comparisons for MCQ options, letter indices, and text values
     let score = 0;
     questions.forEach((q, idx) => {
-      const studentAns = answers[idx] || '';
-      const correctAns = q.answer;
+      const studentAns = (answers[idx] || '').trim().toLowerCase(); // e.g., 'a', 'b', 'c', 'd'
+      const correctAns = (q.answer || '').trim().toLowerCase();
 
       if (q.type === 'MCQ' || q.type === 'True/False' || q.type === 'Assertion Reason') {
-        if (studentAns.trim().toLowerCase() === correctAns.trim().toLowerCase()) {
+        // 1. Direct match (e.g., both are "a" or both are "true")
+        if (studentAns === correctAns) {
           score += 1;
+          return;
+        }
+
+        // 2. Letter-to-Text match (e.g., student selected "a" and correctAns is the text of option A)
+        if (q.options && q.options.length > 0) {
+          const correctOptionIdx = q.options.findIndex(
+            (opt: string) => opt.trim().toLowerCase() === correctAns
+          );
+
+          if (correctOptionIdx !== -1) {
+            const correctLetter = String.fromCharCode(97 + correctOptionIdx); // 'a', 'b', 'c', 'd'
+            if (studentAns === correctLetter) {
+              score += 1;
+              return;
+            }
+          }
+
+          // 3. Text-to-Letter match
+          const selectedOptionIdx = studentAns.charCodeAt(0) - 97; // e.g., 'a' -> 0
+          if (
+            selectedOptionIdx >= 0 && 
+            selectedOptionIdx < q.options.length && 
+            q.options[selectedOptionIdx].trim().toLowerCase() === correctAns
+          ) {
+            score += 1;
+            return;
+          }
         }
       } else {
+        // Short Answer, Long Answer, Numerical etc.
         if (studentAns.length > 2) {
           score += 1;
         }
@@ -298,71 +310,45 @@ function MockTestEngineInner() {
     }
   };
 
-  // Save results for authenticated user
-  const saveTestResults = async (score: number) => {
+  // Save results for authenticated user via server-side API
+  const saveTestResults = async (score: number, overrideUid?: string) => {
     const activeProfile = studentProfile || {
       board: authBoard || queryBoard,
       class_name: authClass || queryClass,
       subject: authSubject || querySubject,
     };
 
-    if (!user || !activeProfile.board) return;
+    const targetUid = overrideUid || user?.uid;
+    if (!targetUid || !activeProfile.board) return;
+    
     setSavingTest(true);
 
     try {
-      const percentage = (score / 5) * 100;
       const durationTaken = 300 - duration;
 
-      // 1. Save Test Attempt in Supabase
-      const { data: testData, error: testError } = await supabase
-        .from('mock_tests')
-        .insert({
-          student_id: user.uid,
+      const response = await fetch('/api/mock-test/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: targetUid,
           board: activeProfile.board,
-          class_name: activeProfile.class_name,
+          className: activeProfile.class_name,
           subject: activeProfile.subject,
           score: score,
-          total_questions: 5,
-          duration_seconds: durationTaken,
+          durationSeconds: durationTaken,
+          questions: questions,
+          answers: answers,
         })
-        .select('*')
-        .single();
+      });
 
-      if (testError) throw testError;
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to save test results.');
+      }
 
-      // 2. Save Answers
-      const answersToInsert = questions.map((q, idx) => ({
-        test_id: testData.id,
-        question_id: q.id,
-        student_answer: answers[idx] || '',
-        is_correct: (q.type === 'MCQ' || q.type === 'True/False') 
-          ? (answers[idx] || '').trim().toLowerCase() === q.answer.trim().toLowerCase()
-          : (answers[idx] || '').length > 2,
-      }));
-
-      await supabase.from('mock_questions').insert(answersToInsert);
-
-      // 3. Generate Certificate if Score >= 4 (80% which is 4 out of 5)
-      if (score >= 4) {
-        const certUniqueId = `QB-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-        
-        const { data: certData, error: certError } = await supabase
-          .from('certificates')
-          .insert({
-            student_id: user.uid,
-            test_id: testData.id,
-            board: activeProfile.board,
-            class_name: activeProfile.class_name,
-            subject: activeProfile.subject,
-            score: score,
-            percentage: percentage,
-            certificate_id: certUniqueId,
-          })
-          .select('*')
-          .single();
-
-        if (certError) throw certError;
-        setCertificateId(certData.id);
+      const result = await response.json();
+      if (result.certificateId) {
+        setCertificateId(result.certificateId);
       }
     } catch (err: any) {
       console.error('Failed to save test details:', err);
@@ -371,75 +357,9 @@ function MockTestEngineInner() {
     }
   };
 
-  // Post-test auth pipeline for guest users
+  // Post-test auth pipeline for guest users: save results to database after auth completes
   const handlePostTestAuth = async (uid: string, profileName: string) => {
-    setSavingTest(true);
-    const activeProfile = {
-      board: authBoard || queryBoard,
-      class_name: authClass || queryClass,
-      subject: authSubject || querySubject,
-    };
-
-    try {
-      const percentage = (finalScore / 5) * 100;
-      const durationTaken = 300 - duration;
-
-      // 1. Save Test Attempt in Supabase
-      const { data: testData, error: testError } = await supabase
-        .from('mock_tests')
-        .insert({
-          student_id: uid,
-          board: activeProfile.board,
-          class_name: activeProfile.class_name,
-          subject: activeProfile.subject,
-          score: finalScore,
-          total_questions: 5,
-          duration_seconds: durationTaken,
-        })
-        .select('*')
-        .single();
-
-      if (testError) throw testError;
-
-      // 2. Save Answers
-      const answersToInsert = questions.map((q, idx) => ({
-        test_id: testData.id,
-        question_id: q.id,
-        student_answer: answers[idx] || '',
-        is_correct: (q.type === 'MCQ' || q.type === 'True/False') 
-          ? (answers[idx] || '').trim().toLowerCase() === q.answer.trim().toLowerCase()
-          : (answers[idx] || '').length > 2,
-      }));
-
-      await supabase.from('mock_questions').insert(answersToInsert);
-
-      // 3. Generate Certificate if Score >= 4
-      if (finalScore >= 4) {
-        const certUniqueId = `QB-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-        
-        const { data: certData, error: certError } = await supabase
-          .from('certificates')
-          .insert({
-            student_id: uid,
-            test_id: testData.id,
-            board: activeProfile.board,
-            class_name: activeProfile.class_name,
-            subject: activeProfile.subject,
-            score: finalScore,
-            percentage: percentage,
-            certificate_id: certUniqueId,
-          })
-          .select('*')
-          .single();
-
-        if (certError) throw certError;
-        setCertificateId(certData.id);
-      }
-    } catch (err: any) {
-      console.error('Failed to save guest test details after auth:', err);
-    } finally {
-      setSavingTest(false);
-    }
+    await saveTestResults(finalScore, uid);
   };
 
   const formattedTime = useMemo(() => {
