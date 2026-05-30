@@ -6,8 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 import supabase from '@/lib/supabase/client';
 import AppShell from '@/components/AppShell';
 import LoadingState from '@/components/LoadingState';
-import EmptyState from '@/components/EmptyState';
-import { Sparkles, Timer, CheckCircle, ChevronLeft, ChevronRight, Award, Trophy, ShieldAlert, LogIn } from 'lucide-react';
+import { Sparkles, Timer, CheckCircle, ChevronLeft, ChevronRight, Award, Trophy, ShieldAlert, LogIn, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { boards, getClasses, getSubjects } from '@/data/catalog';
 
@@ -44,7 +43,7 @@ function MockTestEngineInner() {
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Inline auth state
+  // Inline auth state (active after guest completes mock test or on landing)
   const [isSignUp, setIsSignUp] = useState(true);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -59,7 +58,7 @@ function MockTestEngineInner() {
   // Test state
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [duration, setDuration] = useState(600); // 10 minutes (600s)
+  const [duration, setDuration] = useState(300); // 5 minutes (300s) for 5 questions
   const [testFinished, setTestFinished] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
   const [savingTest, setSavingTest] = useState(false);
@@ -72,7 +71,7 @@ function MockTestEngineInner() {
     if (querySubject) setAuthSubject(querySubject);
   }, [queryBoard, queryClass, querySubject]);
 
-  // Handle dynamic selects when auth selection is needed
+  // Handle dynamic selects when selection is needed
   const classesList = useMemo(() => {
     if (!authBoard) return [];
     return getClasses(authBoard.toLowerCase());
@@ -99,7 +98,7 @@ function MockTestEngineInner() {
     return () => clearInterval(timer);
   }, [testStarted, testFinished, duration]);
 
-  // Handle inline Auth Submission
+  // Handle inline Auth Submission (sign in or register)
   const handleInlineAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -132,8 +131,13 @@ function MockTestEngineInner() {
             subject: activeSubject,
           });
           
-          // Automatically launch the test immediately!
-          await loadTestQuestions();
+          // Post-test auth path: save results to database if test was already completed as guest
+          if (testFinished) {
+            await handlePostTestAuth(loggedUser.uid, authName);
+          } else {
+            // Automatically launch the test immediately!
+            await loadTestQuestions();
+          }
         }
       } else {
         loggedUser = await loginWithEmail(authEmail, authPassword);
@@ -145,11 +149,13 @@ function MockTestEngineInner() {
             .eq('id', loggedUser.uid)
             .maybeSingle();
           
+          const profileName = currentProf?.name || loggedUser.displayName || 'Student';
+          
           if (!currentProf || !currentProf.board) {
             await updateStudentProfile({
               id: loggedUser.uid,
               email: authEmail,
-              name: currentProf?.name || loggedUser.displayName || 'Student',
+              name: profileName,
               phone: currentProf?.phone || authPhone || '',
               board: activeBoard,
               class_name: activeClass,
@@ -157,8 +163,13 @@ function MockTestEngineInner() {
             });
           }
           
-          // Automatically launch the test immediately!
-          await loadTestQuestions();
+          // Post-test auth path: save results to database if test was already completed as guest
+          if (testFinished) {
+            await handlePostTestAuth(loggedUser.uid, profileName);
+          } else {
+            // Automatically launch the test immediately!
+            await loadTestQuestions();
+          }
         }
       }
     } catch (err: any) {
@@ -168,7 +179,7 @@ function MockTestEngineInner() {
     }
   };
 
-  // Load questions for mock test
+  // Load 5 questions for mock test
   const loadTestQuestions = async () => {
     const activeBoard = studentProfile?.board || authBoard || queryBoard;
     const activeClass = studentProfile?.class_name || authClass || queryClass;
@@ -195,7 +206,7 @@ function MockTestEngineInner() {
       let testQuestions = data || [];
 
       // If cache miss or insufficient questions, automatically trigger AI question generator!
-      if (testQuestions.length < 10) {
+      if (testQuestions.length < 5) {
         setLoadingQuestions(true);
         setErrorMsg('AI is generating dynamic mock test questions for your syllabus on the fly. Please wait up to 10 seconds...');
         
@@ -215,7 +226,7 @@ function MockTestEngineInner() {
         }
 
         const genResult = await genResponse.json();
-        if (genResult.questions && genResult.questions.length >= 10) {
+        if (genResult.questions && genResult.questions.length >= 5) {
           testQuestions = genResult.questions;
           setErrorMsg('');
         } else {
@@ -223,9 +234,15 @@ function MockTestEngineInner() {
         }
       }
 
-      // Shuffle and pick 10 questions
-      const shuffled = [...testQuestions].sort(() => 0.5 - Math.random());
-      const selected = shuffled.slice(0, 10).map((q: any) => ({
+      // Filter for Easy difficulty questions if possible to align with requested easy parameter, fallback to others
+      let easyQuestions = testQuestions.filter((q: any) => q.difficulty?.toLowerCase() === 'easy');
+      if (easyQuestions.length < 5) {
+        easyQuestions = testQuestions;
+      }
+
+      // Shuffle and pick 5 questions
+      const shuffled = [...easyQuestions].sort(() => 0.5 - Math.random());
+      const selected = shuffled.slice(0, 5).map((q: any) => ({
         id: q.id,
         type: q.type,
         difficulty: q.difficulty,
@@ -237,10 +254,11 @@ function MockTestEngineInner() {
 
       setQuestions(selected);
       setTestStarted(true);
-      setDuration(600); // Reset timer
+      setDuration(300); // Reset timer to 5 minutes
       setCurrentIdx(0);
       setAnswers({});
       setTestFinished(false);
+      setCertificateId(null);
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to load test questions.');
     } finally {
@@ -255,7 +273,7 @@ function MockTestEngineInner() {
   const handleFinishTest = async () => {
     setTestFinished(true);
 
-    // Calculate score
+    // Calculate score out of 5
     let score = 0;
     questions.forEach((q, idx) => {
       const studentAns = answers[idx] || '';
@@ -273,9 +291,14 @@ function MockTestEngineInner() {
     });
 
     setFinalScore(score);
-    await saveTestResults(score);
+
+    // Save test results immediately if the user is already authenticated
+    if (user) {
+      await saveTestResults(score);
+    }
   };
 
+  // Save results for authenticated user
   const saveTestResults = async (score: number) => {
     const activeProfile = studentProfile || {
       board: authBoard || queryBoard,
@@ -287,8 +310,8 @@ function MockTestEngineInner() {
     setSavingTest(true);
 
     try {
-      const percentage = (score / 10) * 100;
-      const durationTaken = 600 - duration;
+      const percentage = (score / 5) * 100;
+      const durationTaken = 300 - duration;
 
       // 1. Save Test Attempt in Supabase
       const { data: testData, error: testError } = await supabase
@@ -299,7 +322,7 @@ function MockTestEngineInner() {
           class_name: activeProfile.class_name,
           subject: activeProfile.subject,
           score: score,
-          total_questions: 10,
+          total_questions: 5,
           duration_seconds: durationTaken,
         })
         .select('*')
@@ -319,8 +342,8 @@ function MockTestEngineInner() {
 
       await supabase.from('mock_questions').insert(answersToInsert);
 
-      // 3. Generate Certificate if Score >= 80% (8 out of 10)
-      if (score >= 8) {
+      // 3. Generate Certificate if Score >= 4 (80% which is 4 out of 5)
+      if (score >= 4) {
         const certUniqueId = `QB-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
         
         const { data: certData, error: certError } = await supabase
@@ -348,13 +371,84 @@ function MockTestEngineInner() {
     }
   };
 
+  // Post-test auth pipeline for guest users
+  const handlePostTestAuth = async (uid: string, profileName: string) => {
+    setSavingTest(true);
+    const activeProfile = {
+      board: authBoard || queryBoard,
+      class_name: authClass || queryClass,
+      subject: authSubject || querySubject,
+    };
+
+    try {
+      const percentage = (finalScore / 5) * 100;
+      const durationTaken = 300 - duration;
+
+      // 1. Save Test Attempt in Supabase
+      const { data: testData, error: testError } = await supabase
+        .from('mock_tests')
+        .insert({
+          student_id: uid,
+          board: activeProfile.board,
+          class_name: activeProfile.class_name,
+          subject: activeProfile.subject,
+          score: finalScore,
+          total_questions: 5,
+          duration_seconds: durationTaken,
+        })
+        .select('*')
+        .single();
+
+      if (testError) throw testError;
+
+      // 2. Save Answers
+      const answersToInsert = questions.map((q, idx) => ({
+        test_id: testData.id,
+        question_id: q.id,
+        student_answer: answers[idx] || '',
+        is_correct: (q.type === 'MCQ' || q.type === 'True/False') 
+          ? (answers[idx] || '').trim().toLowerCase() === q.answer.trim().toLowerCase()
+          : (answers[idx] || '').length > 2,
+      }));
+
+      await supabase.from('mock_questions').insert(answersToInsert);
+
+      // 3. Generate Certificate if Score >= 4
+      if (finalScore >= 4) {
+        const certUniqueId = `QB-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        
+        const { data: certData, error: certError } = await supabase
+          .from('certificates')
+          .insert({
+            student_id: uid,
+            test_id: testData.id,
+            board: activeProfile.board,
+            class_name: activeProfile.class_name,
+            subject: activeProfile.subject,
+            score: finalScore,
+            percentage: percentage,
+            certificate_id: certUniqueId,
+          })
+          .select('*')
+          .single();
+
+        if (certError) throw certError;
+        setCertificateId(certData.id);
+      }
+    } catch (err: any) {
+      console.error('Failed to save guest test details after auth:', err);
+    } finally {
+      setSavingTest(false);
+    }
+  };
+
   const formattedTime = useMemo(() => {
     const mins = Math.floor(duration / 60);
     const secs = duration % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }, [duration]);
 
-  if (authLoading) return <LoadingState label="Validating test credentials..." />;
+  if (authLoading) return <LoadingState label="Validating test parameters..." />;
 
   // Display params summary
   const activeBoard = studentProfile?.board || authBoard || queryBoard;
@@ -366,101 +460,74 @@ function MockTestEngineInner() {
     <AppShell>
       <div className="flex h-full flex-col overflow-hidden text-left bg-[#050816]/30 text-white">
         {!testStarted ? (
-          /* Landing / Auth / Config screen */
+          /* Landing Page: Free configuration selection (no signup forced upfront) */
           <div className="flex-1 w-full min-h-0 thin-scrollbar overflow-y-auto px-4 py-10 sm:py-16 flex flex-col items-center justify-start text-center space-y-6">
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="inline-flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-300 via-teal-300 to-cyan-400 p-[2px] shadow-[0_10px_24px_rgba(52,211,153,0.22)]"
-          >
-            <div className="h-full w-full rounded-[13px] sm:rounded-[22px] bg-[#050816] grid place-items-center text-emerald-300">
-              <Trophy size={20} className="sm:size-[28px]" />
+            
+            {/* Cyber-glow overlay */}
+            <div className="absolute top-1/3 left-1/2 -translate-x-1/2 h-64 w-64 bg-emerald-500/10 rounded-full blur-[110px] pointer-events-none"></div>
+
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="inline-flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-300 via-teal-300 to-cyan-400 p-[2px] shadow-[0_10px_24px_rgba(52,211,153,0.22)]"
+            >
+              <div className="h-full w-full rounded-[13px] sm:rounded-[22px] bg-[#050816] grid place-items-center text-emerald-300">
+                <Trophy size={20} className="sm:size-[28px]" />
+              </div>
+            </motion.div>
+
+            <div className="max-w-md space-y-2">
+              <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white leading-tight">
+                MOCK EVALUATION ENGINE
+              </h2>
+              <p className="text-xs text-emerald-300 font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full w-fit mx-auto">
+                ⚡ FREE QUIZ • NO SIGNUP REQUIRED
+              </p>
+              <p className="text-[11px] sm:text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+                Test your skills with an active 5-question curriculum assessment. Claim your verified credential after reviewing your score!
+              </p>
             </div>
-          </motion.div>
 
-          <div className="max-w-md">
-            <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white leading-tight">
-              MOCK TEST ENGINE
-            </h2>
-            <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-slate-400 leading-relaxed">
-              Take a rapid 10-question evaluation aligned to your curriculum parameters. Score 80% or higher to earn an AI-validated certificate.
-            </p>
-          </div>
+            {/* Launch Config Card */}
+            <div className="glass max-w-md w-full p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/12 text-left space-y-4 shadow-2xl relative overflow-hidden bg-slate-900/80">
+              {/* Card Ambient Glows */}
+              <div className="absolute -top-12 -left-12 h-32 w-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
+              <div className="absolute -bottom-12 -right-12 h-32 w-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
-          {!user ? (
-            /* Cinematic Auth Box inline */
-            <div className="glass max-w-md w-full p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/12 text-left space-y-3 sm:space-y-4">
-              <div className="text-center pb-2">
-                <span className="text-[10px] font-black uppercase text-cyan-200 tracking-widest">Onboarding Authentication</span>
-                <h4 className="text-sm sm:text-lg font-black mt-1 text-white">
-                  {isSignUp ? 'Sign up to begin mock test' : 'Sign in to your account'}
-                </h4>
+              <div className="text-left pb-2 border-b border-white/5">
+                <span className="text-[9px] font-black uppercase text-cyan-200 tracking-widest">Assessment Configuration</span>
+                <h4 className="text-sm sm:text-base font-black mt-0.5 text-white">Select Syllabus Parameters</h4>
               </div>
 
-              <form onSubmit={handleInlineAuth} className="space-y-3.5">
-                {isSignUp && (
-                  <>
-                    <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">Full Name</label>
-                      <input
-                        type="text"
-                        required
-                        value={authName}
-                        onChange={(e) => setAuthName(e.target.value)}
-                        className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
-                        placeholder="e.g. Susanto Ganguly"
-                      />
+              {isProfileComplete && user ? (
+                /* Profile exists & Complete */
+                <div className="space-y-4">
+                  <div className="p-3.5 rounded-xl border border-emerald-300/15 bg-slate-950/40 text-xs space-y-1.5">
+                    <p><span className="text-slate-400 font-bold">Curriculum Board:</span> <span className="font-extrabold text-white">{activeBoard}</span></p>
+                    <p><span className="text-slate-400 font-bold">Class Name:</span> <span className="font-extrabold text-white">{activeClass}</span></p>
+                    <p><span className="text-slate-400 font-bold">Selected Subject:</span> <span className="font-extrabold text-white">{activeSubject}</span></p>
+                  </div>
+                  
+                  {errorMsg && (
+                    <div className="p-3.5 rounded-xl border border-rose-300/20 bg-rose-300/10 text-rose-300 text-xs">
+                      {errorMsg}
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">Phone Number (10 digits)</label>
-                      <input
-                        type="text"
-                        required
-                        pattern="\d{10}"
-                        value={authPhone}
-                        onChange={(e) => setAuthPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                        className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
-                        placeholder="e.g. 9835379900"
-                      />
-                    </div>
-                  </>
-                )}
+                  )}
 
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">Email Address</label>
-                  <input
-                    type="email"
-                    required
-                    value={authEmail}
-                    onChange={(e) => setAuthEmail(e.target.value)}
-                    className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
-                    placeholder="you@school.com"
-                  />
+                  <button
+                    onClick={loadTestQuestions}
+                    disabled={loadingQuestions}
+                    className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-emerald-300 via-teal-300 to-cyan-400 text-slate-950 font-black shadow-[0_4px_0_#047857] active:translate-y-0.5 transition duration-150 cursor-pointer text-xs uppercase tracking-wider"
+                  >
+                    {loadingQuestions ? 'Preparing Assessment...' : 'Launch Assessment'}
+                  </button>
                 </div>
-
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">Password</label>
-                  <input
-                    type="password"
-                    required
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                    className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
-                    placeholder="••••••••"
-                  />
-                </div>
-
-                {/* Pre-fill Curriculum Fields if query params exist, otherwise show select fields */}
-                <div className="pt-2 border-t border-white/5 space-y-2">
-                  <span className="block text-[10px] font-black uppercase text-cyan-200 tracking-wider">Syllabus Parameters</span>
-                  {queryBoard && queryClass && querySubject ? (
-                    <div className="p-3 rounded-xl border border-emerald-300/10 bg-emerald-300/5 text-[11px] space-y-1">
-                      <p><span className="text-slate-400">Board:</span> <span className="font-bold text-slate-200">{queryBoard}</span></p>
-                      <p><span className="text-slate-400">Class:</span> <span className="font-bold text-slate-200">{queryClass}</span></p>
-                      <p><span className="text-slate-400">Subject:</span> <span className="font-bold text-slate-200">{querySubject}</span></p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
+              ) : (
+                /* Guest selector or logged-in configuration setup */
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Curriculum Board</label>
                       <select
                         required
                         value={authBoard}
@@ -469,14 +536,17 @@ function MockTestEngineInner() {
                           setAuthClass('');
                           setAuthSubject('');
                         }}
-                        className="h-10 w-full rounded-xl border border-white/10 bg-slate-900 px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
+                        className="h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
                       >
-                        <option value="">Select Board</option>
+                        <option value="">Choose Board</option>
                         {boards.map((b) => (
                           <option key={b.id} value={b.name}>{b.name}</option>
                         ))}
                       </select>
+                    </div>
 
+                    <div>
+                      <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Grade / Class</label>
                       <select
                         required
                         disabled={!authBoard}
@@ -485,143 +555,47 @@ function MockTestEngineInner() {
                           setAuthClass(e.target.value);
                           setAuthSubject('');
                         }}
-                        className="h-10 w-full rounded-xl border border-white/10 bg-slate-900 px-3 text-white outline-none focus:border-cyan-200/60 text-xs disabled:opacity-50"
+                        className="h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs disabled:opacity-40"
                       >
-                        <option value="">Select Class</option>
+                        <option value="">Choose Class</option>
                         {classesList.map((cls) => (
                           <option key={cls} value={cls}>{cls}</option>
                         ))}
                       </select>
+                    </div>
 
+                    <div>
+                      <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Curriculum Subject</label>
                       <select
                         required
                         disabled={!authClass}
                         value={authSubject}
                         onChange={(e) => setAuthSubject(e.target.value)}
-                        className="h-10 w-full rounded-xl border border-white/10 bg-slate-900 px-3 text-white outline-none focus:border-cyan-200/60 text-xs disabled:opacity-50"
+                        className="h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs disabled:opacity-40"
                       >
-                        <option value="">Select Subject</option>
+                        <option value="">Choose Subject</option>
                         {subjectsList.map((sub) => (
                           <option key={sub} value={sub}>{sub}</option>
                         ))}
                       </select>
                     </div>
-                  )}
-                </div>
-
-                {authError && (
-                  <div className="flex items-start gap-1.5 p-3 rounded-xl border border-rose-300/20 bg-rose-300/10 text-rose-300 text-[11px] leading-normal">
-                    <ShieldAlert size={14} className="shrink-0 mt-0.5" />
-                    <span>{authError}</span>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={authSubmitting}
-                  className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-emerald-300 via-teal-300 to-cyan-400 text-slate-950 font-black shadow-lg cursor-pointer text-xs"
-                >
-                  <LogIn size={15} />
-                  {authSubmitting ? 'Authenticating...' : isSignUp ? 'Register & Start Mock Test' : 'Sign In & Start Mock Test'}
-                </button>
-              </form>
-
-              <div className="text-center pt-2 border-t border-white/5">
-                <button
-                  onClick={() => setIsSignUp(!isSignUp)}
-                  className="text-[10px] text-slate-400 hover:text-cyan-200 tracking-wider font-semibold cursor-pointer uppercase"
-                >
-                  {isSignUp ? 'Already have an account? Sign In' : 'New student? Create an account'}
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* Logged in parameters check & launch */
-            <div className="space-y-4 max-w-sm w-full">
-              {isProfileComplete ? (
-                <>
-                  <div className="glass p-5 rounded-2xl border border-white/10 text-xs text-left space-y-2">
-                    <p className="font-bold text-cyan-200 tracking-wider uppercase">Active Syllabus Parameters</p>
-                    <p><span className="text-slate-400">Board:</span> <span className="font-bold text-slate-200">{activeBoard}</span></p>
-                    <p><span className="text-slate-400">Class:</span> <span className="font-bold text-slate-200">{activeClass}</span></p>
-                    <p><span className="text-slate-400">Subject:</span> <span className="font-bold text-slate-200">{activeSubject}</span></p>
                   </div>
 
                   {errorMsg && (
-                    <div className="p-4 rounded-xl border border-rose-300/20 bg-rose-300/10 text-rose-300 text-xs leading-normal">
+                    <div className="p-3.5 rounded-xl border border-rose-300/20 bg-rose-300/10 text-rose-300 text-xs text-center">
                       {errorMsg}
                     </div>
                   )}
 
                   <button
-                    onClick={loadTestQuestions}
-                    disabled={loadingQuestions}
-                    className="inline-flex h-12 w-full px-8 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-emerald-300 via-teal-300 to-cyan-400 text-slate-950 font-black shadow-[0_8px_0_rgba(2,6,23,0.7)] transition active:translate-y-1 disabled:opacity-50 cursor-pointer"
-                  >
-                    {loadingQuestions ? 'Preparing Engine...' : 'Launch Test Now'}
-                  </button>
-                </>
-              ) : (
-                /* Profile exists but has missing parameters */
-                <div className="glass p-5 rounded-2xl border border-white/10 text-left space-y-3">
-                  <div className="text-center">
-                    <p className="font-bold text-cyan-200 uppercase tracking-widest text-[10px]">Setup Curriculum</p>
-                    <p className="text-xs text-slate-300 mt-1">Configure your mock test board, class, and subject below.</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <select
-                      required
-                      value={authBoard}
-                      onChange={(e) => {
-                        setAuthBoard(e.target.value);
-                        setAuthClass('');
-                        setAuthSubject('');
-                      }}
-                      className="h-11 w-full rounded-xl border border-white/10 bg-slate-900 px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
-                    >
-                      <option value="">Select Board</option>
-                      {boards.map((b) => (
-                        <option key={b.id} value={b.name}>{b.name}</option>
-                      ))}
-                    </select>
-
-                    <select
-                      required
-                      disabled={!authBoard}
-                      value={authClass}
-                      onChange={(e) => {
-                        setAuthClass(e.target.value);
-                        setAuthSubject('');
-                      }}
-                      className="h-11 w-full rounded-xl border border-white/10 bg-slate-900 px-3 text-white outline-none focus:border-cyan-200/60 text-xs disabled:opacity-50"
-                    >
-                      <option value="">Select Class</option>
-                      {classesList.map((cls) => (
-                        <option key={cls} value={cls}>{cls}</option>
-                      ))}
-                    </select>
-
-                    <select
-                      required
-                      disabled={!authClass}
-                      value={authSubject}
-                      onChange={(e) => setAuthSubject(e.target.value)}
-                      className="h-11 w-full rounded-xl border border-white/10 bg-slate-900 px-3 text-white outline-none focus:border-cyan-200/60 text-xs disabled:opacity-50"
-                    >
-                      <option value="">Select Subject</option>
-                      {subjectsList.map((sub) => (
-                        <option key={sub} value={sub}>{sub}</option>
-                      ))}
-                    </select>
-
-                    <button
-                      onClick={async () => {
-                        setErrorMsg('');
-                        if (!authBoard || !authClass || !authSubject) {
-                          setErrorMsg('Please select board, class and subject.');
-                          return;
-                        }
+                    onClick={async () => {
+                      if (!authBoard || !authClass || !authSubject) {
+                        setErrorMsg('Please configure all three curriculum selectors first.');
+                        return;
+                      }
+                      
+                      // If logged in, update profile first, otherwise launch immediately as guest!
+                      if (user) {
                         const success = await updateStudentProfile({
                           board: authBoard,
                           class_name: authClass,
@@ -630,174 +604,343 @@ function MockTestEngineInner() {
                         if (success) {
                           loadTestQuestions();
                         } else {
-                          setErrorMsg('Failed to sync profile update.');
+                          setErrorMsg('Failed to synchronize profile parameters.');
                         }
-                      }}
-                      className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-emerald-300 via-teal-300 to-cyan-400 text-slate-950 font-black shadow-lg cursor-pointer text-xs"
-                    >
-                      Save Parameters & Launch Test
-                    </button>
-
-                    {errorMsg && (
-                      <p className="text-xs text-rose-300 text-center">{errorMsg}</p>
-                    )}
-                  </div>
+                      } else {
+                        await loadTestQuestions();
+                      }
+                    }}
+                    disabled={loadingQuestions}
+                    className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-emerald-300 via-teal-300 to-cyan-400 text-slate-950 font-black shadow-[0_4px_0_#047857] active:translate-y-0.5 transition duration-150 cursor-pointer text-xs uppercase tracking-wider"
+                  >
+                    {loadingQuestions ? 'Preparing Engine...' : 'Launch Assessment'}
+                  </button>
                 </div>
               )}
             </div>
-          )}
-        </div>
-      ) : testFinished ? (
-        /* Results screen */
-        <div className="flex-1 min-h-0 thin-scrollbar overflow-y-auto p-6 sm:py-16 flex flex-col items-center justify-start text-center space-y-6">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-yellow-300 to-amber-500 p-[3px] shadow-lg"
-          >
-            <div className="h-full w-full rounded-full bg-[#050816] grid place-items-center text-yellow-300">
-              {finalScore >= 8 ? <Award size={36} className="animate-bounce" /> : <CheckCircle size={36} />}
-            </div>
-          </motion.div>
-
-          <div>
-            <h3 className="text-3xl font-black text-white leading-tight">
-              {finalScore >= 8 ? 'CONGRATULATIONS!' : 'TEST COMPLETE'}
-            </h3>
-            <p className="mt-1 text-sm text-slate-400">
-              You scored <span className="text-cyan-200 font-bold">{finalScore} / 10</span> ({finalScore * 10}%)
-            </p>
           </div>
+        ) : testFinished ? (
+          /* Results Page: Post-evaluation authentication callout if guest */
+          <div className="flex-1 min-h-0 thin-scrollbar overflow-y-auto px-4 py-8 sm:py-12 flex flex-col items-center justify-start text-center space-y-6">
+            
+            {/* Cyber-glow node */}
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 h-64 w-64 bg-amber-500/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-          {finalScore >= 8 ? (
-            <div className="glass max-w-md p-5 rounded-2xl border border-yellow-300/20 bg-yellow-300/5 text-slate-200 text-sm space-y-3">
-              <p className="font-bold text-yellow-300">Award Certificate Earned!</p>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Your exceptional score qualifies you for an AI Question Bank Certificate of Competency in {activeSubject}.
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-orange-500 p-[2.5px] shadow-lg"
+            >
+              <div className="h-full w-full rounded-full bg-[#050816] grid place-items-center text-amber-300">
+                {finalScore >= 4 ? <Award size={30} className="animate-bounce" /> : <CheckCircle size={30} />}
+              </div>
+            </motion.div>
+
+            <div>
+              <h3 className="text-2xl sm:text-3xl font-black text-white leading-tight">
+                {finalScore >= 4 ? 'EVALUATION COMPLETE!' : 'TEST COMPLETED'}
+              </h3>
+              <p className="mt-1.5 text-xs sm:text-sm text-slate-400">
+                Subject Score: <span className="text-amber-300 font-extrabold text-base">{finalScore} / 5</span> ({finalScore * 20}%)
               </p>
-              {certificateId && (
+            </div>
+
+            {/* Display watermarked mock certificate preview if user is NOT logged in */}
+            {!user ? (
+              <div className="w-full max-w-lg space-y-6">
+                
+                {/* Gold-Bordered Watermarked Certificate Preview */}
+                <div className="relative overflow-hidden p-6 rounded-2xl border-[3px] border-double border-yellow-500/40 bg-slate-950/80 shadow-2xl space-y-4 text-left select-none">
+                  {/* Diagonal glowing watermark overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center rotate-[-15deg] pointer-events-none select-none overflow-hidden opacity-10">
+                    <span className="text-3xl sm:text-4xl font-black uppercase text-red-500 tracking-wider whitespace-nowrap border-4 border-double border-red-500 p-2 sm:p-4 text-center">
+                      PROVISIONAL GUEST • REQ AUTH
+                    </span>
+                  </div>
+                  
+                  {/* Real visual watermark banner across the card */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-[-20deg] bg-rose-500/90 text-slate-950 text-[10px] sm:text-xs font-black uppercase py-2 px-8 tracking-widest text-center shadow-lg border-y-2 border-white/20 z-10 w-[140%] select-none flex items-center justify-center gap-1.5">
+                    <Lock size={12} />
+                    <span>Login to unlock certified PDF & name</span>
+                  </div>
+
+                  {/* Mock Certificate Content */}
+                  <div className="opacity-40 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-0.5">
+                        <span className="text-[7px] font-black uppercase text-yellow-500 tracking-wider">Verification Certificate</span>
+                        <h4 className="text-xs sm:text-sm font-black text-white">QUESTION BANK AI CREDENTIAL</h4>
+                      </div>
+                      <Trophy size={20} className="text-yellow-500" />
+                    </div>
+
+                    <div className="space-y-1 border-t border-white/5 pt-2">
+                      <p className="text-[9px] text-slate-400">Awarded to Student:</p>
+                      <p className="text-sm font-black text-white tracking-wide">
+                        {authName || 'Your Name Will Be Displayed'}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pt-2">
+                      <div>
+                        <p className="text-[8px] text-slate-400">Curriculum Syllabus</p>
+                        <p className="text-[10px] font-extrabold text-slate-200">{activeSubject} ({activeBoard})</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] text-slate-400">Credential Rating</p>
+                        <p className="text-[10px] font-extrabold text-slate-200">Score {finalScore}/5 ({finalScore * 20}%)</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cinematic Glassmorphic Auth Callout */}
+                <div className="glass p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-cyan-300/20 bg-slate-900/90 text-left space-y-4 shadow-2xl relative overflow-hidden">
+                  {/* Cyber glow sparkles */}
+                  <div className="absolute -top-12 -right-12 h-32 w-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+                  <div className="text-center pb-2 border-b border-white/5">
+                    <span className="text-[10px] font-black uppercase text-amber-200 tracking-widest">Register Achievement</span>
+                    <h4 className="text-sm sm:text-base font-black mt-1 text-white">
+                      {isSignUp ? 'Sign up to claim your certificate' : 'Sign in to sync your score'}
+                    </h4>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Create a profile to save this score, remove the watermark, and download your official gold-bordered credential PDF!
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleInlineAuth} className="space-y-3.5">
+                    {isSignUp && (
+                      <>
+                        <div>
+                          <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Full Name (Displayed on Certificate)</label>
+                          <input
+                            type="text"
+                            required
+                            value={authName}
+                            onChange={(e) => setAuthName(e.target.value)}
+                            className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
+                            placeholder="Susanto Ganguly"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">10-Digit Mobile Number</label>
+                          <input
+                            type="text"
+                            required
+                            pattern="\d{10}"
+                            value={authPhone}
+                            onChange={(e) => setAuthPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                            className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
+                            placeholder="9835379900"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    <div>
+                      <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Email Address</label>
+                      <input
+                        type="email"
+                        required
+                        value={authEmail}
+                        onChange={(e) => setAuthEmail(e.target.value)}
+                        className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
+                        placeholder="you@domain.com"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Password</label>
+                      <input
+                        type="password"
+                        required
+                        value={authPassword}
+                        onChange={(e) => setAuthPassword(e.target.value)}
+                        className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
+                        placeholder="••••••••"
+                      />
+                    </div>
+
+                    {authError && (
+                      <div className="flex items-start gap-1.5 p-3 rounded-xl border border-rose-300/20 bg-rose-300/10 text-rose-300 text-[10px] leading-normal">
+                        <ShieldAlert size={14} className="shrink-0 mt-0.5" />
+                        <span>{authError}</span>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={authSubmitting || savingTest}
+                      className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-emerald-300 via-teal-300 to-cyan-400 text-slate-950 font-black shadow-[0_4px_0_#047857] active:translate-y-0.5 transition duration-150 cursor-pointer text-xs uppercase tracking-wider"
+                    >
+                      <LogIn size={15} />
+                      {authSubmitting ? 'Syncing...' : isSignUp ? 'Claim Verified Certificate' : 'Sign In & Claim Certificate'}
+                    </button>
+                  </form>
+
+                  <div className="text-center pt-2 border-t border-white/5">
+                    <button
+                      onClick={() => setIsSignUp(!isSignUp)}
+                      className="text-[9px] text-slate-400 hover:text-cyan-200 tracking-wider font-semibold cursor-pointer uppercase"
+                    >
+                      {isSignUp ? 'Already have an account? Sign In' : 'New student? Register profile'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Authenticated results view: displays official verified badge */
+              <div className="w-full max-w-md space-y-4">
+                {finalScore >= 4 ? (
+                  <div className="glass p-6 rounded-2xl border border-yellow-300/20 bg-slate-900/60 text-slate-200 text-xs text-left space-y-3 shadow-2xl relative overflow-hidden">
+                    {/* Golden glows */}
+                    <div className="absolute -top-12 -left-12 h-32 w-32 bg-yellow-500/10 rounded-full blur-2xl pointer-events-none"></div>
+                    
+                    <p className="font-extrabold text-yellow-300 uppercase tracking-widest text-[10px] flex items-center gap-1">
+                      <Award size={14} /> Official Credential Unlocked!
+                    </p>
+                    <p className="text-slate-300 leading-relaxed text-[11px]">
+                      Congratulations, <span className="font-bold text-white">{studentProfile?.name || user.displayName || 'Student'}</span>! Your high score has successfully generated an official verified certificate of competency.
+                    </p>
+                    
+                    {savingTest ? (
+                      <div className="text-center text-xs text-slate-400 font-bold py-2">
+                        Registering credential with database...
+                      </div>
+                    ) : certificateId ? (
+                      <button
+                        onClick={() => router.push(`/certificate/${certificateId}`)}
+                        className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-yellow-300 via-amber-400 to-orange-500 text-slate-950 font-black shadow-[0_4px_0_#9a3412] active:translate-y-0.5 transition duration-150 cursor-pointer text-xs uppercase tracking-wider"
+                      >
+                        Download Official Certificate <ChevronRight size={14} />
+                      </button>
+                    ) : (
+                      <div className="text-slate-400 text-center py-2 text-[10px]">
+                        Synchronizing credential id... Click Dashboard to review historical certificates.
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="glass p-5 rounded-2xl border border-white/10 text-xs text-slate-400 bg-slate-900/40">
+                    You scored {finalScore}/5. Try again anytime to score 80% (4 out of 5) or higher to claim a certified achievement credential.
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2 w-full">
+                  <button
+                    onClick={() => {
+                      setTestStarted(false);
+                      setCertificateId(null);
+                    }}
+                    className="flex-1 inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-slate-950/40 text-slate-200 font-black hover:bg-white/5 cursor-pointer text-xs uppercase tracking-wider"
+                  >
+                    Quiz Center
+                  </button>
+                  
+                  <button
+                    onClick={() => router.push('/dashboard')}
+                    className="flex-1 inline-flex h-11 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-cyan-400 via-sky-400 to-blue-500 text-slate-950 font-black shadow-[0_4px_0_#1e3a8a] active:translate-y-0.5 transition duration-150 cursor-pointer text-xs uppercase tracking-wider"
+                  >
+                    Dashboard
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Active test view: 5 Questions assessment */
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="border-b border-white/10 bg-slate-950/20 px-4 py-3 flex items-center justify-between">
+              <div className="min-w-0">
+                <span className="text-[9px] font-black uppercase text-cyan-200 tracking-wider">MOCK EVALUATION ({currentIdx + 1}/5)</span>
+                <h3 className="text-base sm:text-lg font-black text-white truncate">{activeSubject}</h3>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 py-1.5 text-rose-200 text-xs font-black">
+                <Timer size={15} />
+                <span>{formattedTime}</span>
+              </div>
+            </div>
+
+            <div className="thin-scrollbar flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+              <div className="glass p-5 rounded-2xl border border-white/12 space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-cyan-200 uppercase tracking-widest">Question {currentIdx + 1} of 5</span>
+                  <span className="rounded-lg border border-slate-700 bg-slate-800/50 px-2 py-0.5 text-[9px] text-slate-300 font-bold uppercase tracking-wider">
+                    {questions[currentIdx].difficulty} • {questions[currentIdx].type}
+                  </span>
+                </div>
+
+                <div className="text-base sm:text-lg leading-relaxed text-white font-semibold whitespace-pre-wrap">
+                  {questions[currentIdx].question}
+                </div>
+
+                {questions[currentIdx].options?.length ? (
+                  <div className="grid gap-2.5 pt-2">
+                    {questions[currentIdx].options.map((option, oIdx) => {
+                      const prefix = String.fromCharCode(65 + oIdx);
+                      const isSelected = answers[currentIdx] === prefix;
+                      
+                      return (
+                        <button
+                          key={option}
+                          onClick={() => handleSelectAnswer(prefix)}
+                          className={`w-full text-left rounded-xl border p-3.5 text-xs sm:text-sm font-semibold transition cursor-pointer flex gap-3 ${
+                            isSelected
+                              ? 'border-cyan-300 bg-cyan-300/10 text-white font-bold'
+                              : 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
+                          }`}
+                        >
+                          <span className={`grid h-5 w-5 shrink-0 place-items-center rounded bg-slate-800 border border-slate-700 text-[11px] ${isSelected ? 'bg-cyan-200 text-slate-950 border-cyan-200 font-bold' : ''}`}>
+                            {prefix}
+                          </span>
+                          <span>{option}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="pt-2">
+                    <textarea
+                      rows={4}
+                      value={answers[currentIdx] || ''}
+                      onChange={(e) => handleSelectAnswer(e.target.value)}
+                      placeholder="Write your answer..."
+                      className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.05] p-3 text-white outline-none focus:border-cyan-200/60 text-xs sm:text-sm"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom Actions Navigation */}
+            <div className="border-t border-white/10 bg-slate-950/20 px-4 py-3.5 flex items-center justify-between">
+              <button
+                disabled={currentIdx === 0}
+                onClick={() => setCurrentIdx((prev) => prev - 1)}
+                className="inline-flex h-10 px-4 items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 text-slate-200 text-xs font-bold disabled:opacity-40 cursor-pointer"
+              >
+                <ChevronLeft size={16} /> Prev
+              </button>
+
+              {currentIdx < 4 ? (
                 <button
-                  onClick={() => router.push(`/certificate/${certificateId}`)}
-                  className="inline-flex h-10 px-5 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-yellow-300 to-amber-500 text-slate-950 font-black shadow-md cursor-pointer text-xs"
+                  onClick={() => setCurrentIdx((prev) => prev + 1)}
+                  className="inline-flex h-10 px-4 items-center justify-center gap-1 rounded-xl bg-gradient-to-br from-white/10 to-white/5 text-slate-100 text-xs font-bold hover:bg-white/10 cursor-pointer"
                 >
-                  View & Download Certificate <ChevronRight size={14} />
+                  Next <ChevronRight size={16} />
+                </button>
+              ) : (
+                <button
+                  onClick={handleFinishTest}
+                  className="inline-flex h-10 px-5 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-emerald-300 via-teal-300 to-cyan-400 text-slate-950 font-black shadow-[0_4px_0_#047857] active:translate-y-0.5 transition duration-150 cursor-pointer text-xs uppercase tracking-wider"
+                >
+                  <CheckCircle size={15} /> Finish Test
                 </button>
               )}
             </div>
-          ) : (
-            <div className="glass max-w-sm p-4 rounded-xl border border-white/10 text-xs text-slate-400">
-              Score 80% (8 / 10) or higher to unlock downloadable achievement certificates. Try again anytime!
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-2">
-            <button
-              onClick={() => setTestStarted(false)}
-              className="inline-flex h-11 px-6 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 text-slate-200 font-bold hover:bg-white/10 cursor-pointer text-xs"
-            >
-              Back to Test Center
-            </button>
-            
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="inline-flex h-11 px-6 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-cyan-300 via-sky-300 to-violet-400 text-slate-950 font-black cursor-pointer text-xs"
-            >
-              View Dashboard
-            </button>
           </div>
-        </div>
-      ) : (
-        /* Active test view */
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="border-b border-white/10 bg-slate-950/20 px-4 py-3 flex items-center justify-between">
-            <div className="min-w-0">
-              <span className="text-[10px] font-black uppercase text-cyan-200 tracking-wider">MOCK EVALUATION</span>
-              <h3 className="text-base sm:text-lg font-black text-white truncate">{activeSubject}</h3>
-            </div>
-            <div className="flex items-center gap-2 rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 py-1.5 text-rose-200 text-xs font-black">
-              <Timer size={15} />
-              <span>{formattedTime}</span>
-            </div>
-          </div>
-
-          <div className="thin-scrollbar flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            <div className="glass p-5 rounded-2xl border border-white/12 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-cyan-200 uppercase tracking-widest">Question {currentIdx + 1} of 10</span>
-                <span className="rounded-lg border border-slate-700 bg-slate-800/50 px-2 py-0.5 text-[10px] text-slate-300 font-bold">
-                  {questions[currentIdx].type}
-                </span>
-              </div>
-
-              <div className="text-base sm:text-lg leading-relaxed text-white font-semibold whitespace-pre-wrap">
-                {questions[currentIdx].question}
-              </div>
-
-              {questions[currentIdx].options?.length ? (
-                <div className="grid gap-2.5 pt-2">
-                  {questions[currentIdx].options.map((option, oIdx) => {
-                    const prefix = String.fromCharCode(65 + oIdx);
-                    const isSelected = answers[currentIdx] === prefix;
-                    
-                    return (
-                      <button
-                        key={option}
-                        onClick={() => handleSelectAnswer(prefix)}
-                        className={`w-full text-left rounded-xl border p-3.5 text-xs sm:text-sm font-semibold transition cursor-pointer flex gap-3 ${
-                          isSelected
-                            ? 'border-cyan-300 bg-cyan-300/10 text-white font-bold'
-                            : 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
-                        }`}
-                      >
-                        <span className={`grid h-5 w-5 shrink-0 place-items-center rounded bg-slate-800 border border-slate-700 text-[11px] ${isSelected ? 'bg-cyan-200 text-slate-950 border-cyan-200 font-bold' : ''}`}>
-                          {prefix}
-                        </span>
-                        <span>{option}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="pt-2">
-                  <textarea
-                    rows={4}
-                    value={answers[currentIdx] || ''}
-                    onChange={(e) => handleSelectAnswer(e.target.value)}
-                    placeholder="Write your answer..."
-                    className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.05] p-3 text-white outline-none focus:border-cyan-200/60 text-xs sm:text-sm"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="border-t border-white/10 bg-slate-950/20 px-4 py-3.5 flex items-center justify-between">
-            <button
-              disabled={currentIdx === 0}
-              onClick={() => setCurrentIdx((prev) => prev - 1)}
-              className="inline-flex h-10 px-4 items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 text-slate-200 text-xs font-bold disabled:opacity-40 cursor-pointer"
-            >
-              <ChevronLeft size={16} /> Prev
-            </button>
-
-            {currentIdx < 9 ? (
-              <button
-                onClick={() => setCurrentIdx((prev) => prev + 1)}
-                className="inline-flex h-10 px-4 items-center justify-center gap-1 rounded-xl bg-gradient-to-br from-white/10 to-white/5 text-slate-100 text-xs font-bold hover:bg-white/10 cursor-pointer"
-              >
-                Next <ChevronRight size={16} />
-              </button>
-            ) : (
-              <button
-                onClick={handleFinishTest}
-                className="inline-flex h-10 px-5 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-emerald-300 to-teal-400 text-slate-950 font-black shadow-md cursor-pointer text-xs"
-              >
-                <CheckCircle size={15} /> Finish Test
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+        )}
       </div>
     </AppShell>
   );
