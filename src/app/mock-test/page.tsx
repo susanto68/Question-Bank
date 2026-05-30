@@ -458,10 +458,10 @@ function MockTestEngineInner() {
 
   return (
     <AppShell>
-      <div className="flex h-full flex-col overflow-hidden text-left bg-[#050816]/30 text-white">
+      <div className="relative h-full w-full text-left bg-[#050816]/30 text-white">
         {!testStarted ? (
-          /* Landing Page: Free configuration selection (no signup forced upfront) */
-          <div className="flex-1 w-full min-h-0 thin-scrollbar overflow-y-auto px-4 py-10 sm:py-16 flex flex-col items-center justify-start text-center space-y-6">
+          /* Landing Page: Free configuration selection (no signup forced upfront) - Absolute scrollable container */
+          <div className="absolute inset-0 overflow-y-auto thin-scrollbar px-4 py-8 sm:py-12 flex flex-col items-center justify-start text-center space-y-6 pb-24">
             
             {/* Cyber-glow overlay */}
             <div className="absolute top-1/3 left-1/2 -translate-x-1/2 h-64 w-64 bg-emerald-500/10 rounded-full blur-[110px] pointer-events-none"></div>
@@ -469,14 +469,14 @@ function MockTestEngineInner() {
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="inline-flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-300 via-teal-300 to-cyan-400 p-[2px] shadow-[0_10px_24px_rgba(52,211,153,0.22)]"
+              className="inline-flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-300 via-teal-300 to-cyan-400 p-[2px] shadow-[0_10px_24px_rgba(52,211,153,0.22)] shrink-0"
             >
               <div className="h-full w-full rounded-[13px] sm:rounded-[22px] bg-[#050816] grid place-items-center text-emerald-300">
                 <Trophy size={20} className="sm:size-[28px]" />
               </div>
             </motion.div>
 
-            <div className="max-w-md space-y-2">
+            <div className="max-w-md space-y-2 shrink-0">
               <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white leading-tight">
                 MOCK EVALUATION ENGINE
               </h2>
@@ -488,8 +488,8 @@ function MockTestEngineInner() {
               </p>
             </div>
 
-            {/* Launch Config Card */}
-            <div className="glass max-w-md w-full p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/12 text-left space-y-4 shadow-2xl relative overflow-hidden bg-slate-900/80">
+            {/* Launch Config Card - Flex Shrink-0 to prevent layout collapse */}
+            <div className="glass max-w-md w-full p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/12 text-left space-y-4 shadow-2xl relative overflow-hidden bg-slate-900/80 shrink-0">
               {/* Card Ambient Glows */}
               <div className="absolute -top-12 -left-12 h-32 w-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
               <div className="absolute -bottom-12 -right-12 h-32 w-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
@@ -620,8 +620,8 @@ function MockTestEngineInner() {
             </div>
           </div>
         ) : testFinished ? (
-          /* Results Page: Post-evaluation authentication callout if guest */
-          <div className="flex-1 min-h-0 thin-scrollbar overflow-y-auto px-4 py-8 sm:py-12 flex flex-col items-center justify-start text-center space-y-6">
+          /* Results Page: Absolute scrollable container */
+          <div className="absolute inset-0 overflow-y-auto thin-scrollbar px-4 py-8 sm:py-12 flex flex-col items-center justify-start text-center space-y-6 pb-24">
             
             {/* Cyber-glow node */}
             <div className="absolute top-1/4 left-1/2 -translate-x-1/2 h-64 w-64 bg-amber-500/10 rounded-full blur-[120px] pointer-events-none"></div>
@@ -629,14 +629,14 @@ function MockTestEngineInner() {
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-orange-500 p-[2.5px] shadow-lg"
+              className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-orange-500 p-[2.5px] shadow-lg shrink-0"
             >
               <div className="h-full w-full rounded-full bg-[#050816] grid place-items-center text-amber-300">
                 {finalScore >= 4 ? <Award size={30} className="animate-bounce" /> : <CheckCircle size={30} />}
               </div>
             </motion.div>
 
-            <div>
+            <div className="shrink-0">
               <h3 className="text-2xl sm:text-3xl font-black text-white leading-tight">
                 {finalScore >= 4 ? 'EVALUATION COMPLETE!' : 'TEST COMPLETED'}
               </h3>
@@ -647,10 +647,10 @@ function MockTestEngineInner() {
 
             {/* Display watermarked mock certificate preview if user is NOT logged in */}
             {!user ? (
-              <div className="w-full max-w-lg space-y-6">
+              <div className="w-full max-w-lg space-y-6 shrink-0">
                 
                 {/* Gold-Bordered Watermarked Certificate Preview */}
-                <div className="relative overflow-hidden p-6 rounded-2xl border-[3px] border-double border-yellow-500/40 bg-slate-950/80 shadow-2xl space-y-4 text-left select-none">
+                <div className="relative overflow-hidden p-6 rounded-2xl border-[3px] border-double border-yellow-500/40 bg-slate-950/80 shadow-2xl space-y-4 text-left select-none shrink-0">
                   {/* Diagonal glowing watermark overlay */}
                   <div className="absolute inset-0 flex items-center justify-center rotate-[-15deg] pointer-events-none select-none overflow-hidden opacity-10">
                     <span className="text-3xl sm:text-4xl font-black uppercase text-red-500 tracking-wider whitespace-nowrap border-4 border-double border-red-500 p-2 sm:p-4 text-center">
@@ -695,7 +695,7 @@ function MockTestEngineInner() {
                 </div>
 
                 {/* Cinematic Glassmorphic Auth Callout */}
-                <div className="glass p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-cyan-300/20 bg-slate-900/90 text-left space-y-4 shadow-2xl relative overflow-hidden">
+                <div className="glass p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-cyan-300/20 bg-slate-900/90 text-left space-y-4 shadow-2xl relative overflow-hidden shrink-0">
                   {/* Cyber glow sparkles */}
                   <div className="absolute -top-12 -right-12 h-32 w-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
@@ -791,9 +791,9 @@ function MockTestEngineInner() {
               </div>
             ) : (
               /* Authenticated results view: displays official verified badge */
-              <div className="w-full max-w-md space-y-4">
+              <div className="w-full max-w-md space-y-4 shrink-0">
                 {finalScore >= 4 ? (
-                  <div className="glass p-6 rounded-2xl border border-yellow-300/20 bg-slate-900/60 text-slate-200 text-xs text-left space-y-3 shadow-2xl relative overflow-hidden">
+                  <div className="glass p-6 rounded-2xl border border-yellow-300/20 bg-slate-900/60 text-slate-200 text-xs text-left space-y-3 shadow-2xl relative overflow-hidden shrink-0">
                     {/* Golden glows */}
                     <div className="absolute -top-12 -left-12 h-32 w-32 bg-yellow-500/10 rounded-full blur-2xl pointer-events-none"></div>
                     
@@ -822,12 +822,12 @@ function MockTestEngineInner() {
                     )}
                   </div>
                 ) : (
-                  <div className="glass p-5 rounded-2xl border border-white/10 text-xs text-slate-400 bg-slate-900/40">
+                  <div className="glass p-5 rounded-2xl border border-white/10 text-xs text-slate-400 bg-slate-900/40 shrink-0">
                     You scored {finalScore}/5. Try again anytime to score 80% (4 out of 5) or higher to claim a certified achievement credential.
                   </div>
                 )}
 
-                <div className="flex gap-3 pt-2 w-full">
+                <div className="flex gap-3 pt-2 w-full shrink-0">
                   <button
                     onClick={() => {
                       setTestStarted(false);
@@ -849,14 +849,14 @@ function MockTestEngineInner() {
             )}
           </div>
         ) : (
-          /* Active test view: 5 Questions assessment */
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="border-b border-white/10 bg-slate-950/20 px-4 py-3 flex items-center justify-between">
+          /* Active test view - Fixed flex height absolute view */
+          <div className="absolute inset-0 flex flex-col overflow-hidden">
+            <div className="border-b border-white/10 bg-slate-950/20 px-4 py-3 flex items-center justify-between shrink-0">
               <div className="min-w-0">
                 <span className="text-[9px] font-black uppercase text-cyan-200 tracking-wider">MOCK EVALUATION ({currentIdx + 1}/5)</span>
                 <h3 className="text-base sm:text-lg font-black text-white truncate">{activeSubject}</h3>
               </div>
-              <div className="flex items-center gap-2 rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 py-1.5 text-rose-200 text-xs font-black">
+              <div className="flex items-center gap-2 rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 py-1.5 text-rose-200 text-xs font-black shrink-0">
                 <Timer size={15} />
                 <span>{formattedTime}</span>
               </div>
@@ -914,7 +914,7 @@ function MockTestEngineInner() {
             </div>
 
             {/* Bottom Actions Navigation */}
-            <div className="border-t border-white/10 bg-slate-950/20 px-4 py-3.5 flex items-center justify-between">
+            <div className="border-t border-white/10 bg-slate-950/20 px-4 py-3.5 flex items-center justify-between shrink-0">
               <button
                 disabled={currentIdx === 0}
                 onClick={() => setCurrentIdx((prev) => prev - 1)}
