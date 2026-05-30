@@ -101,13 +101,20 @@ export default function Home() {
             <h2 className="ecosystem-grid-title">Explore Sir Ganguly AI Ecosystem</h2>
             <div className="ecosystem-grid">
               <a 
+                href="/" 
+                className="sg-hero-btn sg-btn-questions"
+              >
+                <span className="sg-btn-icon">❓</span>
+                <span className="sg-btn-text">100 Question Bank</span>
+              </a>
+              <a 
                 href="https://sirganguly.com" 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="sg-hero-btn sg-btn-home"
               >
                 <span className="sg-btn-icon">🏠</span>
-                <span className="sg-btn-text">Home Portal</span>
+                <span className="sg-btn-text">Notes Portal</span>
               </a>
               <a 
                 href="https://ai.sirganguly.com" 
@@ -117,13 +124,6 @@ export default function Home() {
               >
                 <span className="sg-btn-icon">🤖</span>
                 <span className="sg-btn-text">AI Teacher</span>
-              </a>
-              <a 
-                href="/" 
-                className="sg-hero-btn sg-btn-questions"
-              >
-                <span className="sg-btn-icon">❓</span>
-                <span className="sg-btn-text">100 Question Bank</span>
               </a>
               <a 
                 href="https://books.sirganguly.com" 
