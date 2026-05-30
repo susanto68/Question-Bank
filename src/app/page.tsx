@@ -96,107 +96,62 @@ export default function Home() {
         </section>
 
         {/* Premium Ecosystem Future Portals */}
-        <section className="p-2 sm:p-5 border-b border-white/5 bg-slate-950/10">
-          <div className="max-w-7xl mx-auto space-y-4">
-            <div className="text-left px-2.5 sm:px-5">
-              <span className="text-[10px] font-black uppercase text-amber-200 tracking-widest">Advanced Ecosystem Expansion</span>
-              <h3 className="text-xl sm:text-2xl font-black text-white mt-0.5">FUTURE LEARNING PORTALS</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Explore AI career mapping, conceptual notes, teacher avatars, and elite mental counseling portals.</p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 px-2.5 sm:px-5">
-              <div 
-                onClick={() => window.open('https://sirganguly.com', '_blank')}
-                className="group relative rounded-2xl border border-white/10 bg-slate-900/40 p-5 hover:border-rose-300/30 transition duration-300 hover:-translate-y-1 cursor-pointer flex flex-col justify-between shadow-[0_5px_15px_rgba(0,0,0,0.2)]"
+        <section className="p-2 sm:p-5 border-b border-white/5 bg-slate-950/10 no-print">
+          <div className="ecosystem-grid-container" aria-label="Sir Ganguly Ecosystem portals">
+            <h2 className="ecosystem-grid-title">Explore Sir Ganguly AI Ecosystem</h2>
+            <div className="ecosystem-grid">
+              <a 
+                href="https://sirganguly.com" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="sg-hero-btn sg-btn-home"
               >
-                <div className="space-y-3">
-                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-rose-400 to-red-500 p-[1.5px] shadow-md">
-                    <div className="h-full w-full rounded-[10px] bg-slate-950 grid place-items-center text-rose-300">
-                      <FileText size={18} />
-                    </div>
-                  </div>
-                  <h4 className="text-base font-black text-white group-hover:text-rose-300 transition">Sir Ganguly's Notes</h4>
-                  <p className="text-[11px] leading-relaxed text-slate-400">Conceptual study notes, core derivations, vital equations, and PDF downloads.</p>
-                </div>
-                <div className="mt-6 pt-2">
-                  <button
-                    className="w-full inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-white/20 bg-gradient-to-br from-rose-400 via-pink-400 to-red-500 text-[10px] font-black text-slate-950 shadow-[0_4px_0_#9f1239] transition duration-150 active:shadow-[0_1px_0_#9f1239] group-hover:scale-[1.02] cursor-pointer uppercase tracking-wider"
-                  >
-                    <span>Access Hub</span>
-                    <ArrowRight size={12} />
-                  </button>
-                </div>
-              </div>
-
-              <div 
-                onClick={() => window.open('https://ai.sirganguly.com', '_blank')}
-                className="group relative rounded-2xl border border-white/10 bg-slate-900/40 p-5 hover:border-cyan-300/30 transition duration-300 hover:-translate-y-1 cursor-pointer flex flex-col justify-between shadow-[0_5px_15px_rgba(0,0,0,0.2)]"
+                <span className="sg-btn-icon">🏠</span>
+                <span className="sg-btn-text">Home Portal</span>
+              </a>
+              <a 
+                href="https://ai.sirganguly.com" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="sg-hero-btn sg-btn-ai"
               >
-                <div className="space-y-3">
-                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-cyan-300 to-blue-400 p-[1.5px] shadow-md">
-                    <div className="h-full w-full rounded-[10px] bg-slate-950 grid place-items-center text-cyan-300">
-                      <Bot size={18} />
-                    </div>
-                  </div>
-                  <h4 className="text-base font-black text-white group-hover:text-cyan-300 transition">AI Teacher Avatar</h4>
-                  <p className="text-[11px] leading-relaxed text-slate-400">Interact with a holographic voice instructor to resolve deep conceptual doubts.</p>
-                </div>
-                <div className="mt-6 pt-2">
-                  <button
-                    className="w-full inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-white/20 bg-gradient-to-br from-cyan-300 via-sky-400 to-violet-500 text-[10px] font-black text-slate-950 shadow-[0_4px_0_#1e3a8a] transition duration-150 active:shadow-[0_1px_0_#1e3a8a] group-hover:scale-[1.02] cursor-pointer uppercase tracking-wider"
-                  >
-                    <span>Launch Avatar</span>
-                    <ArrowRight size={12} />
-                  </button>
-                </div>
-              </div>
-
-              <div 
-                onClick={() => window.open('https://career.sirganguly.com', '_blank')}
-                className="group relative rounded-2xl border border-white/10 bg-slate-900/40 p-5 hover:border-emerald-300/30 transition duration-300 hover:-translate-y-1 cursor-pointer flex flex-col justify-between shadow-[0_5px_15px_rgba(0,0,0,0.2)]"
+                <span className="sg-btn-icon">🤖</span>
+                <span className="sg-btn-text">AI Teacher</span>
+              </a>
+              <a 
+                href="/" 
+                className="sg-hero-btn sg-btn-questions"
               >
-                <div className="space-y-3">
-                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-300 to-teal-400 p-[1.5px] shadow-md">
-                    <div className="h-full w-full rounded-[10px] bg-slate-950 grid place-items-center text-emerald-300">
-                      <Briefcase size={18} />
-                    </div>
-                  </div>
-                  <h4 className="text-base font-black text-white group-hover:text-emerald-300 transition">AI Career & Placements</h4>
-                  <p className="text-[11px] leading-relaxed text-slate-400">Analyze resumes against tech standards, map skill paths, and apply for jobs.</p>
-                </div>
-                <div className="mt-6 pt-2">
-                  <button
-                    className="w-full inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-white/20 bg-gradient-to-br from-emerald-300 via-teal-400 to-cyan-500 text-[10px] font-black text-slate-950 shadow-[0_4px_0_#065f46] transition duration-150 active:shadow-[0_1px_0_#065f46] group-hover:scale-[1.02] cursor-pointer uppercase tracking-wider"
-                  >
-                    <span>Open Guidance</span>
-                    <ArrowRight size={12} />
-                  </button>
-                </div>
-              </div>
-
-              <div 
-                onClick={() => window.open('https://mentor.sirganguly.com', '_blank')}
-                className="group relative rounded-2xl border border-white/10 bg-slate-900/40 p-5 hover:border-amber-300/30 transition duration-300 hover:-translate-y-1 cursor-pointer flex flex-col justify-between shadow-[0_5px_15px_rgba(0,0,0,0.2)]"
+                <span className="sg-btn-icon">❓</span>
+                <span className="sg-btn-text">100 Question Bank</span>
+              </a>
+              <a 
+                href="https://books.sirganguly.com" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="sg-hero-btn sg-btn-books"
               >
-                <div className="space-y-3">
-                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-300 to-orange-400 p-[1.5px] shadow-md">
-                    <div className="h-full w-full rounded-[10px] bg-slate-950 grid place-items-center text-amber-300">
-                      <Users size={18} />
-                    </div>
-                  </div>
-                  <h4 className="text-base font-black text-white group-hover:text-amber-200 transition">AI Mentorship Counseling</h4>
-                  <p className="text-[11px] leading-relaxed text-slate-400">Consult with specialized digital mentors, design timetables, and manage stress.</p>
-                </div>
-                <div className="mt-6 pt-2">
-                  <button
-                    className="w-full inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-white/20 bg-gradient-to-br from-amber-300 via-yellow-400 to-orange-500 text-[10px] font-black text-slate-950 shadow-[0_4px_0_#9a3412] transition duration-150 active:shadow-[0_1px_0_#9a3412] group-hover:scale-[1.02] cursor-pointer uppercase tracking-wider"
-                  >
-                    <span>Meet Mentors</span>
-                    <ArrowRight size={12} />
-                  </button>
-                </div>
-              </div>
-
+                <span className="sg-btn-icon">📚</span>
+                <span className="sg-btn-text">Books Library</span>
+              </a>
+              <a 
+                href="https://career.sirganguly.com" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="sg-hero-btn sg-btn-career"
+              >
+                <span className="sg-btn-icon">🚀</span>
+                <span className="sg-btn-text">Career Placement</span>
+              </a>
+              <a 
+                href="https://mentor.sirganguly.com" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="sg-hero-btn sg-btn-mentor"
+              >
+                <span className="sg-btn-icon">🎯</span>
+                <span className="sg-btn-text">Meet Mentors</span>
+              </a>
             </div>
           </div>
         </section>
