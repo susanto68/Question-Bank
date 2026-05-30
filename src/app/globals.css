@@ -139,7 +139,7 @@ button {
 
   .certificate-card {
     border-radius: 0 !important;
-    border: 10px double rgba(253, 224, 71, 0.4) !important;
+    border: 4px solid rgba(234, 179, 8, 0.3) !important;
     box-shadow: none !important;
     width: 100vw !important;
     height: 100vh !important;
@@ -148,7 +148,7 @@ button {
     aspect-ratio: 1.414 !important;
     padding: 3rem !important;
     box-sizing: border-box !important;
-    background-color: #020617 !important;
+    background: radial-gradient(circle at 5% 5%, rgba(6, 182, 212, 0.12), transparent 40%), radial-gradient(circle at 95% 95%, rgba(234, 179, 8, 0.08), transparent 40%), linear-gradient(135deg, #020617 0%, #0b153c 100%) !important;
   }
 }
 

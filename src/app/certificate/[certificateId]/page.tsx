@@ -213,61 +213,108 @@ export default function CertificatePage({ params }: PageProps) {
         {/* Certificate body (297mm x 210mm proportional aspect ratio for PDF rendering) */}
         <div
           ref={certificateRef}
-          className="certificate-card relative w-full max-w-3xl aspect-[1.414] overflow-hidden rounded-3xl border-[10px] border-double border-yellow-300/40 bg-slate-950 p-8 sm:p-14 text-center flex flex-col justify-between shadow-[0_20px_50px_rgba(253,224,71,0.12)] select-none"
+          className="certificate-card relative w-full max-w-3xl aspect-[1.414] overflow-hidden rounded-3xl border-4 border-yellow-400/30 bg-slate-950 p-8 sm:p-12 text-center flex flex-col justify-between shadow-[0_0_50px_rgba(34,211,238,0.15)] select-none"
+          style={{
+            background: 'radial-gradient(circle at 5% 5%, rgba(6, 182, 212, 0.12), transparent 40%), radial-gradient(circle at 95% 95%, rgba(234, 179, 8, 0.08), transparent 40%), linear-gradient(135deg, #020617 0%, #0b153c 100%)',
+          }}
         >
-          {/* Internal Border */}
-          <div className="absolute inset-4 rounded-xl border border-yellow-300/20 pointer-events-none" />
+          {/* Internal Border with custom cyan/gold accent glow */}
+          <div className="absolute inset-4 rounded-xl border border-cyan-500/10 pointer-events-none" />
+          <div className="absolute inset-5 rounded-lg border border-yellow-400/5 pointer-events-none" />
 
-          {/* Watermark Logo Icon */}
+          {/* Glowing Tech Corner Brackets */}
+          <div className="absolute top-4 left-4 w-4 h-4 border-t-2 border-l-2 border-cyan-400/60 rounded-tl-sm pointer-events-none" />
+          <div className="absolute top-4 right-4 w-4 h-4 border-t-2 border-r-2 border-cyan-400/60 rounded-tr-sm pointer-events-none" />
+          <div className="absolute bottom-4 left-4 w-4 h-4 border-b-2 border-l-2 border-yellow-400/60 rounded-bl-sm pointer-events-none" />
+          <div className="absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-yellow-400/60 rounded-br-sm pointer-events-none" />
+
+          {/* Decorative Corner Network Nodes (matching home page picture) */}
+          <svg className="absolute top-0 left-0 w-36 h-36 text-cyan-400/15 pointer-events-none" viewBox="0 0 100 100">
+            <path d="M0,20 L30,20 L40,30 L70,30" stroke="currentColor" strokeWidth="0.5" fill="none" />
+            <path d="M20,0 L20,30 L30,40 L30,70" stroke="currentColor" strokeWidth="0.5" fill="none" />
+            <circle cx="30" cy="20" r="1.5" fill="#22d3ee" className="animate-pulse" />
+            <circle cx="40" cy="30" r="1.2" fill="#eab308" />
+            <circle cx="30" cy="40" r="1" fill="#22d3ee" />
+            <circle cx="70" cy="30" r="1.5" fill="#22d3ee" className="animate-ping" style={{ animationDuration: '3s' }} />
+          </svg>
+
+          <svg className="absolute bottom-0 right-0 w-36 h-36 text-yellow-400/10 pointer-events-none" viewBox="0 0 100 100">
+            <path d="M100,80 L70,80 L60,70 L30,70" stroke="currentColor" strokeWidth="0.5" fill="none" />
+            <path d="M80,100 L80,70 L70,60 L70,30" stroke="currentColor" strokeWidth="0.5" fill="none" />
+            <circle cx="70" cy="80" r="1.5" fill="#eab308" className="animate-pulse" />
+            <circle cx="60" cy="70" r="1.2" fill="#22d3ee" />
+            <circle cx="70" cy="60" r="1" fill="#eab308" />
+            <circle cx="30" cy="70" r="1.5" fill="#eab308" className="animate-ping" style={{ animationDuration: '3.5s' }} />
+          </svg>
+
+          {/* Futuristic blueprint/alignment rings behind centerpiece */}
+          <div className="absolute inset-0 grid place-items-center opacity-[0.06] pointer-events-none">
+            <svg className="w-[340px] h-[340px] text-cyan-400 animate-[spin_90s_linear_infinite]" viewBox="0 0 200 200">
+              <circle cx="100" cy="100" r="90" stroke="currentColor" strokeWidth="0.75" strokeDasharray="5 5" fill="none" />
+              <circle cx="100" cy="100" r="72" stroke="currentColor" strokeWidth="0.5" fill="none" />
+              <circle cx="100" cy="100" r="55" stroke="currentColor" strokeWidth="0.75" strokeDasharray="15 8 5 8" fill="none" />
+              <path d="M100,5 L100,195 M5,100 L195,100" stroke="currentColor" strokeWidth="0.4" />
+            </svg>
+          </div>
+
+          {/* Watermark Logo Icon (Glowing Central Seal) */}
           <div className="absolute inset-0 grid place-items-center opacity-3 pointer-events-none">
-            <Award size={280} className="text-yellow-300" />
+            <Award size={260} className="text-cyan-400/60 filter drop-shadow-[0_0_20px_rgba(6,182,212,0.2)]" />
           </div>
 
           {/* Header */}
-          <div className="space-y-1 relative">
-            <div className="inline-flex items-center gap-1 text-[10px] sm:text-xs font-black text-yellow-300 uppercase tracking-[0.25em]">
-              <Sparkles size={14} /> certificate of achievement
+          <div className="space-y-1 sm:space-y-2 relative flex flex-col items-center">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-cyan-500/20 bg-cyan-500/5 text-[9px] sm:text-[10px] font-black text-cyan-300 uppercase tracking-[0.25em] shadow-[0_0_15px_rgba(6,182,212,0.1)]">
+              <Sparkles size={12} className="text-cyan-300" /> certificate of achievement
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-yellow-100 to-yellow-300 bg-clip-text text-transparent">
-              AI QUESTION BANK
+            <h1 className="text-3xl sm:text-4xl font-black tracking-wider bg-gradient-to-r from-cyan-300 via-white to-yellow-300 bg-clip-text text-transparent filter drop-shadow-[0_2px_8px_rgba(6,182,212,0.2)] mt-1">
+              QUESTION BANK AI
             </h1>
-            <p className="text-[9px] sm:text-[11px] text-slate-400 uppercase tracking-[0.16em]">
-              futuristic educational learning ecosystem
+            <p className="text-[8px] sm:text-[10px] text-slate-400 uppercase tracking-[0.2em] font-semibold">
+              unlocking the future of learning • verified credential
             </p>
           </div>
 
           {/* Recipient */}
-          <div className="space-y-2 relative">
-            <p className="text-xs sm:text-sm text-slate-400 italic">This achievement certificate is proudly presented to</p>
-            <h2 className="text-3xl sm:text-4xl font-black text-white py-1 uppercase tracking-wide">
+          <div className="space-y-1 relative">
+            <p className="text-[10px] sm:text-xs text-slate-400 italic font-medium">This achievement certificate is proudly presented to</p>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white py-1 uppercase tracking-wide filter drop-shadow-[0_2px_8px_rgba(255,255,255,0.15)]">
               {studentName}
             </h2>
-            <div className="h-[2px] w-48 bg-gradient-to-r from-transparent via-yellow-300 to-transparent mx-auto" />
+            <div className="h-[1px] w-56 bg-gradient-to-r from-transparent via-cyan-400 to-transparent mx-auto relative">
+              <div className="absolute top-[-2px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-cyan-300 shadow-[0_0_6px_#22d3ee]" />
+            </div>
           </div>
 
           {/* Validation Details */}
-          <div className="space-y-2 max-w-xl mx-auto relative">
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
-              for successfully completing the mock test in <span className="text-yellow-300 font-bold">{certData.subject}</span> under the <span className="text-cyan-200 font-bold">{certData.board}</span> framework ({certData.class_name}) with an outstanding score of <span className="text-emerald-300 font-extrabold">{certData.score} out of 10</span> ({certData.percentage}%).
+          <div className="space-y-2.5 max-w-xl mx-auto relative px-4 text-center">
+            <p className="text-xs sm:text-[13px] text-slate-300 leading-relaxed font-medium">
+              for successfully demonstrating conceptual mastery in <span className="px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-400/25 text-cyan-300 font-bold">{certData.subject}</span> under the <span className="px-2 py-0.5 rounded bg-yellow-500/10 border border-yellow-400/25 text-yellow-300 font-bold">{certData.board}</span> framework ({certData.class_name}).
+            </p>
+            <p className="text-xs sm:text-[13px] text-slate-300 font-medium">
+              Completed with an outstanding score of <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-400/25 text-emerald-300 font-extrabold">{certData.score} out of 10</span> ({certData.percentage}%).
             </p>
           </div>
 
           {/* Signatures & Stamps */}
-          <div className="grid grid-cols-3 items-end pt-4 relative text-left">
+          <div className="grid grid-cols-3 items-center pt-2 relative text-left">
             <div>
-              <p className="text-[10px] text-slate-400">Date Issued</p>
-              <p className="text-xs font-bold text-slate-200 mt-1">{certDate}</p>
+              <p className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Verification Date</p>
+              <p className="text-xs font-black text-slate-200 mt-1">{certDate}</p>
             </div>
 
             <div className="grid place-items-center">
-              <div className="h-14 w-14 rounded-full border border-yellow-300/35 bg-yellow-300/5 grid place-items-center text-yellow-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_0_15px_rgba(253,224,71,0.1)]">
-                <ShieldCheck size={26} className="animate-pulse" />
+              {/* High-Tech Glowing Holographic Seal */}
+              <div className="relative h-16 w-16 rounded-full border border-cyan-400/40 bg-slate-900/80 flex items-center justify-center text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.2)] animate-pulse">
+                <ShieldCheck size={28} className="text-cyan-300 filter drop-shadow-[0_0_4px_#22d3ee]" />
+                {/* Animated outer dashed spin ring */}
+                <div className="absolute inset-[-4px] rounded-full border border-dashed border-yellow-400/20 animate-[spin_40s_linear_infinite]" />
               </div>
             </div>
 
             <div className="text-right">
-              <p className="text-[10px] text-slate-400">Certificate Hash ID</p>
-              <p className="text-xs font-bold text-slate-200 mt-1 tracking-wider">{certData.certificate_id}</p>
+              <p className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Secure Hash ID</p>
+              <p className="text-xs font-mono font-black text-yellow-300 mt-1 tracking-wider text-right">{certData.certificate_id.substring(0, 18)}...</p>
             </div>
           </div>
         </div>
