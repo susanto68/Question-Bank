@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation';
 import supabase from '@/lib/supabase/client';
 import LoadingState from '@/components/LoadingState';
 import EmptyState from '@/components/EmptyState';
-import { Sparkles, Download, FileDown, ArrowLeft, ShieldCheck, Award } from 'lucide-react';
+import { Sparkles, Download, FileDown, ArrowLeft, ShieldCheck, Award, Printer } from 'lucide-react';
 import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 
 interface CertificateData {
@@ -182,6 +182,7 @@ export default function CertificatePage({ params }: PageProps) {
               onClick={handleDownloadPNG}
               disabled={downloading}
               className="inline-flex h-10 px-4 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-black text-slate-100 cursor-pointer"
+              title="Download Certificate as PNG image"
             >
               <Download size={15} />
               <span>PNG</span>
@@ -191,9 +192,20 @@ export default function CertificatePage({ params }: PageProps) {
               onClick={handleDownloadPDF}
               disabled={downloading}
               className="inline-flex h-10 px-4 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-yellow-300 to-amber-500 text-slate-950 font-black shadow-md cursor-pointer text-xs"
+              title="Download Certificate as high-quality PDF"
             >
               <FileDown size={15} />
               <span>{downloading ? 'Exporting...' : 'PDF'}</span>
+            </button>
+
+            <button
+              onClick={() => window.print()}
+              disabled={downloading}
+              className="inline-flex h-10 px-4 items-center justify-center gap-1.5 rounded-xl border border-yellow-300/20 bg-yellow-300/5 hover:bg-yellow-300/10 text-xs font-black text-yellow-300 cursor-pointer"
+              title="Print Certificate or Save as System PDF"
+            >
+              <Printer size={15} />
+              <span>Print</span>
             </button>
           </div>
         </div>
@@ -201,7 +213,7 @@ export default function CertificatePage({ params }: PageProps) {
         {/* Certificate body (297mm x 210mm proportional aspect ratio for PDF rendering) */}
         <div
           ref={certificateRef}
-          className="relative w-full max-w-3xl aspect-[1.414] overflow-hidden rounded-3xl border-[10px] border-double border-yellow-300/40 bg-slate-950 p-8 sm:p-14 text-center flex flex-col justify-between shadow-[0_20px_50px_rgba(253,224,71,0.12)] select-none"
+          className="certificate-card relative w-full max-w-3xl aspect-[1.414] overflow-hidden rounded-3xl border-[10px] border-double border-yellow-300/40 bg-slate-950 p-8 sm:p-14 text-center flex flex-col justify-between shadow-[0_20px_50px_rgba(253,224,71,0.12)] select-none"
         >
           {/* Internal Border */}
           <div className="absolute inset-4 rounded-xl border border-yellow-300/20 pointer-events-none" />
