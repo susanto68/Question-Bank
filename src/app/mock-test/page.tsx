@@ -629,7 +629,7 @@ function MockTestEngineInner() {
                     </p>
                   </div>
 
-                  <form onSubmit={handleInlineAuth} className="space-y-3.5">
+                  <form onSubmit={handleInlineAuth} className="space-y-3.5" autoComplete="off">
                     {isSignUp && (
                       <>
                         <div>
@@ -640,7 +640,8 @@ function MockTestEngineInner() {
                             value={authName}
                             onChange={(e) => setAuthName(e.target.value)}
                             className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
-                            placeholder="Susanto Ganguly"
+                            placeholder="Enter your full name"
+                            autoComplete="off"
                           />
                         </div>
                         <div>
@@ -652,7 +653,8 @@ function MockTestEngineInner() {
                             value={authPhone}
                             onChange={(e) => setAuthPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                             className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
-                            placeholder="9835379900"
+                            placeholder="Enter 10-digit mobile number"
+                            autoComplete="off"
                           />
                         </div>
                       </>
@@ -667,6 +669,7 @@ function MockTestEngineInner() {
                         onChange={(e) => setAuthEmail(e.target.value)}
                         className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
                         placeholder="you@domain.com"
+                        autoComplete="off"
                       />
                     </div>
 
@@ -679,6 +682,7 @@ function MockTestEngineInner() {
                         onChange={(e) => setAuthPassword(e.target.value)}
                         className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
                         placeholder="••••••••"
+                        autoComplete="new-password"
                       />
                     </div>
 
