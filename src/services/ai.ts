@@ -195,7 +195,7 @@ You MUST apply this exact Easy -> Medium -> Hard difficulty and Bloom's Taxonomy
 - Question 10 (ID ${startId + 9}): Hard, Bloom's Level: 'Create', Marks: 5, Est. Time: 300s
 
 Quality Guidelines:
-- Questions must be rich, academic, and match the official Board guidelines. Focus on practical exam-style application and real calculations instead of generic memorization definitions.
+- Questions must be rich, academic, highly professional, and match the official Board guidelines. Focus on practical exam-style application, real equations, and logical derivations instead of generic definition placeholders.
 - Formulas must be beautifully formatted in LaTeX (e.g. use \\Omega, \\frac{V}{R}, \\times).
 - Use double backslashes in JSON strings for LaTeX (e.g. "\\\\Omega", "\\\\frac{V}{R}").
 - Return strictly valid JSON matching the schema below. Do not wrap it in markdown formatting fences.
@@ -614,97 +614,206 @@ async function runWithConcurrency<T, R>(items: T[], concurrency: number, worker:
 }
 
 /**
+ * Concurrently generates exactly 10 questions in a section using Llama 3.1 8B via Groq API
+ */
+async function generateWithLlama(payload: QuestionPayload, section: typeof SECTIONS[0], startId: number): Promise<Question[]> {
+  const groqApiKey = process.env.GROQ_API_KEY;
+  if (!groqApiKey) return [];
+
+  const modelName = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
+  const timeoutMs = Number(process.env.GROQ_TIMEOUT_MS || 35000);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  const prompt = buildSectionPrompt(payload, section, startId);
+
+  const body = {
+    model: modelName,
+    messages: [
+      {
+        role: 'system',
+        content: 'You generate high-quality educational exam questions. Return strictly valid JSON that matches the requested schema. Focus on creating practical, exam-grade, numerical-based or logical derivation questions tailored to the board curriculum.',
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ],
+    temperature: 0.5,
+    response_format: { type: 'json_object' }
+  };
+
+  try {
+    const response = await fetch(process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${groqApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      const message = errData?.error?.message || `Groq Llama request failed with status ${response.status}`;
+      throw new Error(message);
+    }
+
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content || '';
+    const parsed = parseJson(content);
+    const rawQuestions = normalizeGeneratedQuestions(parsed, payload, section.type);
+    
+    return rawQuestions.map((q, idx) => ({
+      ...q,
+      id: startId + idx
+    }));
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Concurrently generates exactly 10 questions in a section using Gemini API
+ */
+async function generateWithGemini(payload: QuestionPayload, section: typeof SECTIONS[0], startId: number): Promise<Question[]> {
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  if (!geminiApiKey) return [];
+
+  const genAI = new GoogleGenerativeAI(geminiApiKey);
+  const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+  const timeoutMs = Math.min(Math.max(Number(process.env.GEMINI_BATCH_TIMEOUT_MS || 35000), 15000), 90000);
+
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    generationConfig: {
+      responseMimeType: 'application/json',
+      temperature: 0.5,
+    },
+  });
+
+  const sectionPrompt = buildSectionPrompt(payload, section, startId);
+
+  try {
+    const result = await Promise.race([
+      model.generateContent(sectionPrompt),
+      new Promise<any>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Section ${section.key} generation timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+
+    const text = result.response.text();
+    const parsed = parseJson(text);
+    const rawQuestions = normalizeGeneratedQuestions(parsed, payload, section.type);
+    
+    return rawQuestions.map((q, idx) => ({
+      ...q,
+      id: startId + idx
+    }));
+  } catch (error) {
+    console.error(`Gemini generation error in section ${section.key}:`, error);
+    return [];
+  }
+}
+
+/**
  * Concurrently generates exactly 100 questions split into Section A to J (10 questions per section)
+ * Prioritizes Groq Llama 3.1 8B Search-First Brain, falls back to Gemini, and finally premium curated database.
  */
 export async function generateQuestions(payload: QuestionPayload): Promise<GenerationResult> {
+  const groqApiKey = process.env.GROQ_API_KEY;
   const geminiApiKey = process.env.GEMINI_API_KEY;
+  const concurrency = Math.min(Math.max(Number(process.env.GEMINI_BATCH_CONCURRENCY || 3), 1), 5);
 
-  if (geminiApiKey) {
+  // 1. Try Llama first as the primary brain if GROQ_API_KEY is configured
+  if (groqApiKey) {
     try {
-      const genAI = new GoogleGenerativeAI(geminiApiKey);
-      const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-      const concurrency = Math.min(Math.max(Number(process.env.GEMINI_BATCH_CONCURRENCY || 3), 1), 5);
-      const timeoutMs = Math.min(Math.max(Number(process.env.GEMINI_BATCH_TIMEOUT_MS || 35000), 15000), 90000);
-
-      // Concurrently run generation for all 10 Sections
+      console.log('Invoking Primary Llama 3.1 8B Search-First Brain concurrently...');
       const results = await runWithConcurrency(SECTIONS, concurrency, async (section, sIdx) => {
-        try {
-          const model = genAI.getGenerativeModel({
-            model: modelName,
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: 0.5,
-            },
-          });
-
-          const startId = sIdx * 10 + 1;
-          const sectionPrompt = buildSectionPrompt(payload, section, startId);
-
-          const result = await Promise.race([
-            model.generateContent(sectionPrompt),
-            new Promise<any>((_, reject) => {
-              setTimeout(() => {
-                reject(new Error(`Section ${section.key} generation timed out after ${timeoutMs}ms`));
-              }, timeoutMs);
-            }),
-          ]);
-
-          const text = result.response.text();
-          const parsed = parseJson(text);
-          const rawQuestions = normalizeGeneratedQuestions(parsed, payload, section.type);
-          
-          // Re-map IDs to ensure exact startId to startId + 9 range
-          return rawQuestions.map((q, idx) => ({
-            ...q,
-            id: startId + idx
-          }));
-        } catch (error) {
-          console.error(`Error generating section ${section.key}:`, error);
-          // Return empty on failure so we can populate from fallback
-          return [];
-        }
+        const startId = sIdx * 10 + 1;
+        return generateWithLlama(payload, section, startId);
       });
 
-      // Flat map all generated questions
       let allQuestions = results.flat();
-
-      // Deduplicate the combined set of questions
       const uniqueQuestions = deduplicateQuestions(allQuestions);
 
-      // If duplicate checking removed items, or any batches failed, refill remaining slots with local fallbacks
       let finalQuestions: Question[] = [];
-      
-      // We will loop from 1 to 100 to ensure we have exactly 100 questions with continuous IDs
       for (let i = 1; i <= 100; i++) {
         const found = uniqueQuestions.find(q => q.id === i);
         if (found) {
           finalQuestions.push(found);
         } else {
-          // Fetch single fallback item for this ID slot
           const fallbackSet = buildLocalFallback(payload, 1, i);
           finalQuestions.push(fallbackSet.questions[0]);
         }
       }
 
-      return {
-        title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
-        board: payload.board,
-        className: payload.className,
-        subject: payload.subject,
-        chapter: payload.chapter,
-        questions: finalQuestions,
-        generatedAt: new Date().toISOString(),
-        cacheable: true,
-        resilient: uniqueQuestions.length < 100,
-        provider: 'gemini',
-        model: modelName
-      };
-
+      if (uniqueQuestions.length >= 80) { // Keep if mostly successful
+        return {
+          title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
+          board: payload.board,
+          className: payload.className,
+          subject: payload.subject,
+          chapter: payload.chapter,
+          questions: finalQuestions,
+          generatedAt: new Date().toISOString(),
+          cacheable: true,
+          resilient: uniqueQuestions.length < 100,
+          provider: 'groq',
+          model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant'
+        };
+      }
     } catch (e) {
-      console.warn('Gemini batch engine failed, falling back to local generation...', e);
+      console.warn('Primary Llama 3.1 8B brain failed, trying fallback Gemini brain...', e);
     }
   }
 
-  // Last resort local fallback
+  // 2. Try Gemini second if Llama fails or is not configured
+  if (geminiApiKey) {
+    try {
+      console.log('Invoking Fallback Gemini Brain concurrently...');
+      const results = await runWithConcurrency(SECTIONS, concurrency, async (section, sIdx) => {
+        const startId = sIdx * 10 + 1;
+        return generateWithGemini(payload, section, startId);
+      });
+
+      let allQuestions = results.flat();
+      const uniqueQuestions = deduplicateQuestions(allQuestions);
+
+      let finalQuestions: Question[] = [];
+      for (let i = 1; i <= 100; i++) {
+        const found = uniqueQuestions.find(q => q.id === i);
+        if (found) {
+          finalQuestions.push(found);
+        } else {
+          const fallbackSet = buildLocalFallback(payload, 1, i);
+          finalQuestions.push(fallbackSet.questions[0]);
+        }
+      }
+
+      if (uniqueQuestions.length >= 80) {
+        return {
+          title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
+          board: payload.board,
+          className: payload.className,
+          subject: payload.subject,
+          chapter: payload.chapter,
+          questions: finalQuestions,
+          generatedAt: new Date().toISOString(),
+          cacheable: true,
+          resilient: uniqueQuestions.length < 100,
+          provider: 'gemini',
+          model: process.env.GEMINI_MODEL || 'gemini-2.0-flash'
+        };
+      }
+    } catch (e) {
+      console.warn('Fallback Gemini brain failed, showing premium curated fallback...', e);
+    }
+  }
+
+  // 3. Last resort premium local fallback
   return buildLocalFallback(payload, 100, 1, 'AI Engine fallback models failed, showing local starter questions.');
 }
