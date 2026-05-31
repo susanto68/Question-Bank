@@ -1,58 +1,64 @@
 import { NextResponse } from 'next/server';
 import supabaseAdmin from '@/lib/supabase/admin';
-import { generateQuestions, normalizePayload, buildCacheKey, Question } from '@/services/ai';
+import { generateQuestions, normalizePayload, buildCacheKey } from '@/services/ai';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const payload = normalizePayload(body);
     const cacheKey = buildCacheKey(payload);
+    const forceRegenerate = body.forceRegenerate === true;
 
-    // 1. DATABASE-FIRST LOOKUP
-    const { data: dbQuestions, error: dbError } = await supabaseAdmin
-      .from('question_bank')
-      .select('*')
-      .eq('board', payload.board)
-      .eq('class_name', payload.className)
-      .eq('subject', payload.subject)
-      .eq('chapter', payload.chapter);
+    // 1. DATABASE-FIRST LOOKUP (if not forced to regenerate)
+    if (!forceRegenerate) {
+      const { data: dbQuestions, error: dbError } = await supabaseAdmin
+        .from('question_bank')
+        .select('*')
+        .eq('board', payload.board)
+        .eq('class_name', payload.className)
+        .eq('subject', payload.subject)
+        .eq('chapter', payload.chapter);
 
-    if (!dbError && dbQuestions && dbQuestions.length >= 100) {
-      // Sort questions by original id/index if stored
-      const sortedQuestions = [...dbQuestions]
-        .sort((a, b) => {
-          // If we have an id tracking index or options length, order logically
-          return a.question.localeCompare(b.question);
-        })
-        .map((q, idx) => ({
-          id: idx + 1,
-          type: q.type,
-          difficulty: q.difficulty,
-          question: q.question,
-          options: q.options || [],
-          answer: q.answer,
-          explanation: q.explanation || '',
-        }));
+      if (!dbError && dbQuestions && dbQuestions.length >= 100) {
+        // Sort questions logically
+        const sortedQuestions = [...dbQuestions]
+          .sort((a, b) => a.type.localeCompare(b.type) || a.question.localeCompare(b.question))
+          .map((q, idx) => ({
+            id: idx + 1,
+            type: q.type,
+            difficulty: q.difficulty,
+            bloom_level: q.bloom_level || 'Understand',
+            concept_tag: q.concept_tag || 'Core Concept',
+            learning_outcome: q.learning_outcome || 'Understand chapter contents',
+            estimated_time: q.estimated_time || 120,
+            marks: q.marks || 2,
+            source: q.source || 'cached',
+            question: q.question,
+            options: q.options || [],
+            answer: q.answer,
+            explanation: q.explanation || '',
+          }));
 
-      return NextResponse.json({
-        source: 'supabase',
-        cacheKey,
-        title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
-        board: payload.board,
-        className: payload.className,
-        subject: payload.subject,
-        chapter: payload.chapter,
-        questions: sortedQuestions,
-        generatedAt: dbQuestions[0]?.created_at || new Date().toISOString(),
-      });
+        return NextResponse.json({
+          source: 'supabase',
+          cacheKey,
+          title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
+          board: payload.board,
+          className: payload.className,
+          subject: payload.subject,
+          chapter: payload.chapter,
+          questions: sortedQuestions,
+          generatedAt: dbQuestions[0]?.created_at || new Date().toISOString(),
+        });
+      }
     }
 
-    // 2. AI SECOND (Cache Miss)
+    // 2. AI SECOND (Cache Miss or Forced)
     const generated = await generateQuestions(payload);
 
     // 3. PERSIST GENERATED QUESTIONS TO DATABASE IF CACHEABLE
     if (generated.cacheable !== false && generated.questions.length > 0) {
-      // Clear any partial existing questions for this chapter
+      // Clear any existing questions for this chapter to ensure fresh generation
       await supabaseAdmin
         .from('question_bank')
         .delete()
@@ -70,6 +76,12 @@ export async function POST(request: Request) {
         chapter: generated.chapter,
         type: q.type,
         difficulty: q.difficulty,
+        bloom_level: q.bloom_level,
+        concept_tag: q.concept_tag,
+        learning_outcome: q.learning_outcome,
+        estimated_time: q.estimated_time,
+        marks: q.marks,
+        source: q.source || generated.provider || 'ai',
         question: q.question,
         options: q.options,
         answer: q.answer,

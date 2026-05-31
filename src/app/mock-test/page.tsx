@@ -8,16 +8,21 @@ import AppShell from '@/components/AppShell';
 import LoadingState from '@/components/LoadingState';
 import { Sparkles, Timer, CheckCircle, ChevronLeft, ChevronRight, Award, Trophy, ShieldAlert, LogIn, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { boards, getClasses, getSubjects } from '@/data/catalog';
+import { boards, getClasses, getSubjects, getChapters } from '@/data/catalog';
 
 interface MockQuestion {
   id: string;
   type: string;
   difficulty: string;
+  bloom_level: string;
+  concept_tag: string;
+  learning_outcome: string;
   question: string;
   options: string[];
   answer: string;
   explanation: string;
+  marks: number;
+  estimated_time: number;
 }
 
 function MockTestEngineInner() {
@@ -43,7 +48,7 @@ function MockTestEngineInner() {
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Inline auth state (active after guest completes mock test or on landing)
+  // Inline auth state
   const [isSignUp, setIsSignUp] = useState(true);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -52,13 +57,17 @@ function MockTestEngineInner() {
   const [authBoard, setAuthBoard] = useState(queryBoard);
   const [authClass, setAuthClass] = useState(queryClass);
   const [authSubject, setAuthSubject] = useState(querySubject);
+  const [authChapter, setAuthChapter] = useState('');
+  const [testMode, setTestMode] = useState('standard');
+  
   const [authError, setAuthError] = useState('');
   const [authSubmitting, setAuthSubmitting] = useState(false);
 
   // Test state
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [duration, setDuration] = useState(300); // 5 minutes (300s) for 5 questions
+  const [duration, setDuration] = useState(1200); // Dynamic timer in seconds
+  const [totalTimeLimit, setTotalTimeLimit] = useState(1200);
   const [testFinished, setTestFinished] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
   const [savingTest, setSavingTest] = useState(false);
@@ -81,6 +90,20 @@ function MockTestEngineInner() {
     if (!authBoard || !authClass) return [];
     return getSubjects(authBoard.toLowerCase(), authClass);
   }, [authBoard, authClass]);
+
+  const chaptersList = useMemo(() => {
+    if (!authSubject) return [];
+    return getChapters(authSubject);
+  }, [authSubject]);
+
+  // Set first chapter as default when subject changes
+  useEffect(() => {
+    if (chaptersList.length > 0) {
+      setAuthChapter(chaptersList[0]);
+    } else {
+      setAuthChapter('');
+    }
+  }, [chaptersList]);
 
   // Timer countdown
   useEffect(() => {
@@ -179,11 +202,85 @@ function MockTestEngineInner() {
     }
   };
 
-  // Load 5 questions for mock test
+  /**
+   * Balanced Randomization & Difficulty Sampler (30% Easy, 40% Medium, 30% Hard)
+   */
+  const sampleMockQuestions = (allQuestions: any[], mode: string): MockQuestion[] => {
+    let easyCount = 6;
+    let mediumCount = 8;
+    let hardCount = 6;
+
+    switch (mode) {
+      case 'quick':
+        easyCount = 2; mediumCount = 2; hardCount = 1; // 5 questions
+        break;
+      case 'mini':
+        easyCount = 3; mediumCount = 4; hardCount = 3; // 10 questions
+        break;
+      case 'half':
+        easyCount = 9; mediumCount = 12; hardCount = 9; // 30 questions
+        break;
+      case 'full':
+        easyCount = 15; mediumCount = 20; hardCount = 15; // 50 questions
+        break;
+      case 'board':
+        easyCount = 12; mediumCount = 16; hardCount = 12; // 40 questions
+        break;
+      case 'standard':
+      default:
+        easyCount = 6; mediumCount = 8; hardCount = 6; // 20 questions
+        break;
+    }
+
+    // Shuffle pool first to prevent systematic concept selection
+    const shuffledAll = [...allQuestions].sort(() => 0.5 - Math.random());
+
+    const easyPool = shuffledAll.filter((q) => q.difficulty?.toLowerCase() === 'easy');
+    const mediumPool = shuffledAll.filter((q) => q.difficulty?.toLowerCase() === 'medium');
+    const hardPool = shuffledAll.filter((q) => q.difficulty?.toLowerCase() === 'hard');
+
+    // Sampling helper prioritizing unique concept tags (Deduplication)
+    const selectFromPool = (pool: any[], targetCount: number) => {
+      const selected: any[] = [];
+      const usedConcepts = new Set<string>();
+
+      // Pass 1: Select unique concepts
+      for (const q of pool) {
+        if (selected.length >= targetCount) break;
+        const concept = (q.concept_tag || '').trim().toLowerCase();
+        if (!concept || !usedConcepts.has(concept)) {
+          selected.push(q);
+          if (concept) usedConcepts.add(concept);
+        }
+      }
+
+      // Pass 2: Fill remaining slot values if unique concept counts were insufficient
+      if (selected.length < targetCount) {
+        for (const q of pool) {
+          if (selected.length >= targetCount) break;
+          if (!selected.includes(q)) {
+            selected.push(q);
+          }
+        }
+      }
+
+      return selected;
+    };
+
+    const selectedEasy = selectFromPool(easyPool, easyCount);
+    const selectedMedium = selectFromPool(mediumPool, mediumCount);
+    const selectedHard = selectFromPool(hardPool, hardCount);
+
+    // Combine and shuffle to avoid predictable difficulty order
+    return [...selectedEasy, ...selectedMedium, ...selectedHard].sort(() => 0.5 - Math.random());
+  };
+
+  // Load questions for mock test
   const loadTestQuestions = async () => {
     const activeBoard = studentProfile?.board || authBoard || queryBoard;
     const activeClass = studentProfile?.class_name || authClass || queryClass;
     const activeSubject = studentProfile?.subject || authSubject || querySubject;
+    const activeChapter = authChapter || chaptersList[0] || 'Core Concepts';
 
     if (!activeBoard || !activeClass || !activeSubject) {
       setErrorMsg('Curriculum parameters are not resolved. Please select a board, class and subject.');
@@ -201,43 +298,40 @@ function MockTestEngineInner() {
           board: activeBoard,
           className: activeClass,
           subject: activeSubject,
-          chapter: 'General Syllabus Comprehensive Review'
+          chapter: activeChapter
         })
       });
 
       if (!genResponse.ok) {
         const errData = await genResponse.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to retrieve mock test questions from the AI engine.');
+        throw new Error(errData.error || 'Failed to retrieve mock test questions.');
       }
 
       const genResult = await genResponse.json();
-      const testQuestions = genResult.questions || [];
+      const allQuestions = genResult.questions || [];
 
-      if (testQuestions.length < 5) {
-        throw new Error('Insufficient questions returned for this curriculum. Please try again.');
+      if (allQuestions.length < 20) {
+        throw new Error('Insufficient questions stored in the database for this chapter. Please retry.');
       }
 
-      // Filter for Easy difficulty questions if possible to align with requested easy parameter, fallback to others
-      let easyQuestions = testQuestions.filter((q: any) => q.difficulty?.toLowerCase() === 'easy');
-      if (easyQuestions.length < 5) {
-        easyQuestions = testQuestions;
-      }
+      // Enforce 30-40-30 balanced sampling based on Mode size
+      const sampled = sampleMockQuestions(allQuestions, testMode);
 
-      // Shuffle and pick 5 questions
-      const shuffled = [...easyQuestions].sort(() => 0.5 - Math.random());
-      const selected = shuffled.slice(0, 5).map((q: any) => ({
-        id: q.id,
-        type: q.type,
-        difficulty: q.difficulty,
-        question: q.question,
-        options: q.options || [],
-        answer: q.answer,
-        explanation: q.explanation || '',
-      }));
-
-      setQuestions(selected);
+      setQuestions(sampled);
       setTestStarted(true);
-      setDuration(300); // Reset timer to 5 minutes
+
+      // Set dynamic time limits
+      let timeLimit = 1200; // standard 20 mins
+      switch (testMode) {
+        case 'quick': timeLimit = 300; break;     // 5 mins
+        case 'mini': timeLimit = 600; break;      // 10 mins
+        case 'half': timeLimit = 1800; break;     // 30 mins
+        case 'full': timeLimit = 3600; break;     // 60 mins
+        case 'board': timeLimit = 2400; break;    // 40 mins
+      }
+
+      setTotalTimeLimit(timeLimit);
+      setDuration(timeLimit);
       setCurrentIdx(0);
       setAnswers({});
       setTestFinished(false);
@@ -259,20 +353,20 @@ function MockTestEngineInner() {
     // Smart multi-paradigm grading comparisons for MCQ options, letter indices, and text values
     let score = 0;
     questions.forEach((q, idx) => {
-      const studentAns = (answers[idx] || '').trim().toLowerCase(); // e.g., 'a', 'b', 'c', 'd'
-      const correctAns = (q.answer || '').trim().toLowerCase();
+      const studentAns = (answers[idx] || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const correctAns = (q.answer || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 
       if (q.type === 'MCQ' || q.type === 'True/False' || q.type === 'Assertion Reason') {
-        // 1. Direct match (e.g., both are "a" or both are "true")
+        // 1. Direct match
         if (studentAns === correctAns) {
           score += 1;
           return;
         }
 
-        // 2. Letter-to-Text match (e.g., student selected "a" and correctAns is the text of option A)
+        // 2. Letter-to-Text match
         if (q.options && q.options.length > 0) {
           const correctOptionIdx = q.options.findIndex(
-            (opt: string) => opt.trim().toLowerCase() === correctAns
+            (opt: string) => opt.trim().toLowerCase().replace(/[^a-z0-9]/g, '') === correctAns
           );
 
           if (correctOptionIdx !== -1) {
@@ -288,15 +382,20 @@ function MockTestEngineInner() {
           if (
             selectedOptionIdx >= 0 && 
             selectedOptionIdx < q.options.length && 
-            q.options[selectedOptionIdx].trim().toLowerCase() === correctAns
+            q.options[selectedOptionIdx].trim().toLowerCase().replace(/[^a-z0-9]/g, '') === correctAns
           ) {
             score += 1;
             return;
           }
         }
+      } else if (q.type === 'Fill in the Blanks' || q.type === 'One Word' || q.type === 'Full Forms') {
+        // Direct string match with robust case/punctuation stripping
+        if (studentAns === correctAns) {
+          score += 1;
+        }
       } else {
-        // Short Answer, Long Answer, Numerical etc.
-        if (studentAns.length > 2) {
+        // Very Short, Short, Medium, Long descriptive answers need simple token validation
+        if (studentAns.length > 3) {
           score += 1;
         }
       }
@@ -324,7 +423,7 @@ function MockTestEngineInner() {
     setSavingTest(true);
 
     try {
-      const durationTaken = 300 - duration;
+      const durationTaken = totalTimeLimit - duration;
 
       const response = await fetch('/api/mock-test/save', {
         method: 'POST',
@@ -374,16 +473,21 @@ function MockTestEngineInner() {
   const activeBoard = studentProfile?.board || authBoard || queryBoard;
   const activeClass = studentProfile?.class_name || authClass || queryClass;
   const activeSubject = studentProfile?.subject || authSubject || querySubject;
-  const isProfileComplete = activeBoard && activeClass && activeSubject;
+  const activeChapter = authChapter || chaptersList[0];
+  const isProfileComplete = activeBoard && activeClass && activeSubject && activeChapter;
+
+  // Passing criteria (80% score threshold)
+  const passingScore = Math.ceil(questions.length * 0.8);
+  const isPassed = finalScore >= passingScore;
+  const percentage = questions.length > 0 ? Math.round((finalScore / questions.length) * 100) : 0;
 
   return (
     <AppShell>
       <div className="relative h-full w-full text-left bg-[#050816]/30 text-white">
         {!testStarted ? (
-          /* Landing Page: Free configuration selection (no signup forced upfront) - Absolute scrollable container */
+          /* Onboarding Landing Form */
           <div className="absolute inset-0 overflow-y-auto thin-scrollbar px-4 py-8 sm:py-12 flex flex-col items-center justify-start text-center space-y-6 pb-24">
             
-            {/* Cyber-glow overlay */}
             <div className="absolute top-1/3 left-1/2 -translate-x-1/2 h-64 w-64 bg-emerald-500/10 rounded-full blur-[110px] pointer-events-none"></div>
 
             <motion.div
@@ -401,149 +505,152 @@ function MockTestEngineInner() {
                 MOCK EVALUATION ENGINE
               </h2>
               <p className="text-xs text-emerald-300 font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full w-fit mx-auto">
-                ⚡ FREE QUIZ • NO SIGNUP REQUIRED
+                ⚡ PRECISE DIFFICULTY • NO DUPES
               </p>
               <p className="text-[11px] sm:text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
-                Test your skills with an active 5-question curriculum assessment. Claim your verified credential after reviewing your score!
+                Test your skills with randomized, non-repetitive board questions. Score 80% or higher to unlock a certified landscape credential!
               </p>
             </div>
 
-            {/* Launch Config Card - Flex Shrink-0 to prevent layout collapse */}
             <div className="glass max-w-md w-full p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/12 text-left space-y-4 shadow-2xl relative overflow-hidden bg-slate-900/80 shrink-0">
-              {/* Card Ambient Glows */}
               <div className="absolute -top-12 -left-12 h-32 w-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
               <div className="absolute -bottom-12 -right-12 h-32 w-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
               <div className="text-left pb-2 border-b border-white/5">
-                <span className="text-[9px] font-black uppercase text-cyan-200 tracking-widest">Assessment Configuration</span>
-                <h4 className="text-sm sm:text-base font-black mt-0.5 text-white">Select Syllabus Parameters</h4>
+                <span className="text-[9px] font-black uppercase text-cyan-200 tracking-widest">Syllabus configuration</span>
+                <h4 className="text-sm sm:text-base font-black mt-0.5 text-white">Configure Mock Parameters</h4>
               </div>
 
-              {isProfileComplete && user ? (
-                /* Profile exists & Complete */
-                <div className="space-y-4">
-                  <div className="p-3.5 rounded-xl border border-emerald-300/15 bg-slate-950/40 text-xs space-y-1.5">
-                    <p><span className="text-slate-400 font-bold">Curriculum Board:</span> <span className="font-extrabold text-white">{activeBoard}</span></p>
-                    <p><span className="text-slate-400 font-bold">Class Name:</span> <span className="font-extrabold text-white">{activeClass}</span></p>
-                    <p><span className="text-slate-400 font-bold">Selected Subject:</span> <span className="font-extrabold text-white">{activeSubject}</span></p>
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Curriculum Board</label>
+                    <select
+                      required
+                      value={authBoard}
+                      onChange={(e) => {
+                        setAuthBoard(e.target.value);
+                        setAuthClass('');
+                        setAuthSubject('');
+                        setAuthChapter('');
+                      }}
+                      className="h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
+                    >
+                      <option value="">Choose Board</option>
+                      {boards.map((b) => (
+                        <option key={b.id} value={b.name}>{b.name}</option>
+                      ))}
+                    </select>
                   </div>
-                  
-                  {errorMsg && (
-                    <div className="p-3.5 rounded-xl border border-rose-300/20 bg-rose-300/10 text-rose-300 text-xs">
-                      {errorMsg}
-                    </div>
-                  )}
 
-                  <button
-                    onClick={loadTestQuestions}
-                    disabled={loadingQuestions}
-                    className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-emerald-300 via-teal-300 to-cyan-400 text-slate-950 font-black shadow-[0_4px_0_#047857] active:translate-y-0.5 transition duration-150 cursor-pointer text-xs uppercase tracking-wider"
-                  >
-                    {loadingQuestions ? 'Preparing Assessment...' : 'Launch Assessment'}
-                  </button>
-                </div>
-              ) : (
-                /* Guest selector or logged-in configuration setup */
-                <div className="space-y-4">
-                  <div className="space-y-3">
+                  <div>
+                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Grade / Class</label>
+                    <select
+                      required
+                      disabled={!authBoard}
+                      value={authClass}
+                      onChange={(e) => {
+                        setAuthClass(e.target.value);
+                        setAuthSubject('');
+                        setAuthChapter('');
+                      }}
+                      className="h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs disabled:opacity-40"
+                    >
+                      <option value="">Choose Class</option>
+                      {classesList.map((cls) => (
+                        <option key={cls} value={cls}>{cls}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Curriculum Subject</label>
+                    <select
+                      required
+                      disabled={!authClass}
+                      value={authSubject}
+                      onChange={(e) => {
+                        setAuthSubject(e.target.value);
+                        setAuthChapter('');
+                      }}
+                      className="h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs disabled:opacity-40"
+                    >
+                      <option value="">Choose Subject</option>
+                      {subjectsList.map((sub) => (
+                        <option key={sub} value={sub}>{sub}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {authSubject && (
                     <div>
-                      <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Curriculum Board</label>
+                      <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Chapter Selection</label>
                       <select
                         required
-                        value={authBoard}
-                        onChange={(e) => {
-                          setAuthBoard(e.target.value);
-                          setAuthClass('');
-                          setAuthSubject('');
-                        }}
+                        value={authChapter}
+                        onChange={(e) => setAuthChapter(e.target.value)}
                         className="h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
                       >
-                        <option value="">Choose Board</option>
-                        {boards.map((b) => (
-                          <option key={b.id} value={b.name}>{b.name}</option>
+                        <option value="">Choose Chapter</option>
+                        {chaptersList.map((ch) => (
+                          <option key={ch} value={ch}>{ch}</option>
                         ))}
                       </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Grade / Class</label>
-                      <select
-                        required
-                        disabled={!authBoard}
-                        value={authClass}
-                        onChange={(e) => {
-                          setAuthClass(e.target.value);
-                          setAuthSubject('');
-                        }}
-                        className="h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs disabled:opacity-40"
-                      >
-                        <option value="">Choose Class</option>
-                        {classesList.map((cls) => (
-                          <option key={cls} value={cls}>{cls}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Curriculum Subject</label>
-                      <select
-                        required
-                        disabled={!authClass}
-                        value={authSubject}
-                        onChange={(e) => setAuthSubject(e.target.value)}
-                        className="h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs disabled:opacity-40"
-                      >
-                        <option value="">Choose Subject</option>
-                        {subjectsList.map((sub) => (
-                          <option key={sub} value={sub}>{sub}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {errorMsg && (
-                    <div className="p-3.5 rounded-xl border border-rose-300/20 bg-rose-300/10 text-rose-300 text-xs text-center">
-                      {errorMsg}
                     </div>
                   )}
 
-                  <button
-                    onClick={async () => {
-                      if (!authBoard || !authClass || !authSubject) {
-                        setErrorMsg('Please configure all three curriculum selectors first.');
-                        return;
-                      }
-                      
-                      // If logged in, update profile first, otherwise launch immediately as guest!
-                      if (user) {
-                        const success = await updateStudentProfile({
-                          board: authBoard,
-                          class_name: authClass,
-                          subject: authSubject,
-                        });
-                        if (success) {
-                          loadTestQuestions();
-                        } else {
-                          setErrorMsg('Failed to synchronize profile parameters.');
-                        }
-                      } else {
-                        await loadTestQuestions();
-                      }
-                    }}
-                    disabled={loadingQuestions}
-                    className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-emerald-300 via-teal-300 to-cyan-400 text-slate-950 font-black shadow-[0_4px_0_#047857] active:translate-y-0.5 transition duration-150 cursor-pointer text-xs uppercase tracking-wider"
-                  >
-                    {loadingQuestions ? 'Preparing Engine...' : 'Launch Assessment'}
-                  </button>
+                  <div>
+                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Test Mode & Dynamic Size</label>
+                    <select
+                      required
+                      value={testMode}
+                      onChange={(e) => setTestMode(e.target.value)}
+                      className="h-10 w-full rounded-xl border border-white/10 bg-slate-950 px-3 text-white outline-none focus:border-cyan-200/60 text-xs"
+                    >
+                      <option value="quick">Quick Test (5 Questions - 5 mins)</option>
+                      <option value="mini">Mini Test (10 Questions - 10 mins)</option>
+                      <option value="standard">Standard Test (20 Questions - 20 mins - Recommended)</option>
+                      <option value="half">Half-Length Exam (30 Questions - 30 mins)</option>
+                      <option value="full">Full-Length Exam (50 Questions - 60 mins)</option>
+                      <option value="board">Complete Board Mock Test (40 Questions - 40 mins)</option>
+                    </select>
+                  </div>
                 </div>
-              )}
+
+                {errorMsg && (
+                  <div className="p-3.5 rounded-xl border border-rose-300/20 bg-rose-300/10 text-rose-300 text-xs text-center">
+                    {errorMsg}
+                  </div>
+                )}
+
+                <button
+                  onClick={async () => {
+                    if (!authBoard || !authClass || !authSubject || !authChapter) {
+                      setErrorMsg('Please configure all syllabus parameters, including chapter.');
+                      return;
+                    }
+                    
+                    if (user) {
+                      await updateStudentProfile({
+                        board: authBoard,
+                        class_name: authClass,
+                        subject: authSubject,
+                      });
+                    }
+                    await loadTestQuestions();
+                  }}
+                  disabled={loadingQuestions}
+                  className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-emerald-300 via-teal-300 to-cyan-400 text-slate-950 font-black shadow-[0_4px_0_#047857] active:translate-y-0.5 transition duration-150 cursor-pointer text-xs uppercase tracking-wider"
+                >
+                  {loadingQuestions ? 'Populating & Querying Database...' : 'Launch Assessment'}
+                </button>
+              </div>
             </div>
           </div>
         ) : testFinished ? (
-          /* Results Page: Absolute scrollable container */
+          /* Results Summary Page */
           <div className="absolute inset-0 overflow-y-auto thin-scrollbar px-4 py-8 sm:py-12 flex flex-col items-center justify-start text-center space-y-6 pb-24">
             
-            {/* Cyber-glow node */}
             <div className="absolute top-1/4 left-1/2 -translate-x-1/2 h-64 w-64 bg-amber-500/10 rounded-full blur-[120px] pointer-events-none"></div>
 
             <motion.div
@@ -552,39 +659,36 @@ function MockTestEngineInner() {
               className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-orange-500 p-[2.5px] shadow-lg shrink-0"
             >
               <div className="h-full w-full rounded-full bg-[#050816] grid place-items-center text-amber-300">
-                {finalScore >= 4 ? <Award size={30} className="animate-bounce" /> : <CheckCircle size={30} />}
+                {isPassed ? <Award size={30} className="animate-bounce" /> : <CheckCircle size={30} />}
               </div>
             </motion.div>
 
             <div className="shrink-0">
               <h3 className="text-2xl sm:text-3xl font-black text-white leading-tight">
-                {finalScore >= 4 ? 'EVALUATION COMPLETE!' : 'TEST COMPLETED'}
+                {isPassed ? 'EVALUATION COMPLETE!' : 'TEST COMPLETED'}
               </h3>
               <p className="mt-1.5 text-xs sm:text-sm text-slate-400">
-                Subject Score: <span className="text-amber-300 font-extrabold text-base">{finalScore} / 5</span> ({finalScore * 20}%)
+                Subject Score: <span className="text-amber-300 font-extrabold text-base">{finalScore} / {questions.length}</span> ({percentage}%)
               </p>
             </div>
 
-            {/* Display watermarked mock certificate preview if user is NOT logged in */}
+            {/* Guest credential claim block */}
             {!user ? (
               <div className="w-full max-w-lg space-y-6 shrink-0">
                 
                 {/* Gold-Bordered Watermarked Certificate Preview */}
                 <div className="relative overflow-hidden p-6 rounded-2xl border-[3px] border-double border-yellow-500/40 bg-slate-950/80 shadow-2xl space-y-4 text-left select-none shrink-0">
-                  {/* Diagonal glowing watermark overlay */}
                   <div className="absolute inset-0 flex items-center justify-center rotate-[-15deg] pointer-events-none select-none overflow-hidden opacity-10">
                     <span className="text-3xl sm:text-4xl font-black uppercase text-red-500 tracking-wider whitespace-nowrap border-4 border-double border-red-500 p-2 sm:p-4 text-center">
                       PROVISIONAL GUEST • REQ AUTH
                     </span>
                   </div>
                   
-                  {/* Real visual watermark banner across the card */}
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-[-20deg] bg-rose-500/90 text-slate-950 text-[10px] sm:text-xs font-black uppercase py-2 px-8 tracking-widest text-center shadow-lg border-y-2 border-white/20 z-10 w-[140%] select-none flex items-center justify-center gap-1.5">
                     <Lock size={12} />
-                    <span>Login to unlock certified PDF & name</span>
+                    <span>Login to unlock certified PDF</span>
                   </div>
 
-                  {/* Mock Certificate Content */}
                   <div className="opacity-40 space-y-3">
                     <div className="flex justify-between items-start">
                       <div className="space-y-0.5">
@@ -608,15 +712,14 @@ function MockTestEngineInner() {
                       </div>
                       <div>
                         <p className="text-[8px] text-slate-400">Credential Rating</p>
-                        <p className="text-[10px] font-extrabold text-slate-200">Score {finalScore}/5 ({finalScore * 20}%)</p>
+                        <p className="text-[10px] font-extrabold text-slate-200">Score {finalScore}/{questions.length} ({percentage}%)</p>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Cinematic Glassmorphic Auth Callout */}
+                {/* Account setup callout */}
                 <div className="glass p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-cyan-300/20 bg-slate-900/90 text-left space-y-4 shadow-2xl relative overflow-hidden shrink-0">
-                  {/* Cyber glow sparkles */}
                   <div className="absolute -top-12 -right-12 h-32 w-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
                   <div className="text-center pb-2 border-b border-white/5">
@@ -714,11 +817,10 @@ function MockTestEngineInner() {
                 </div>
               </div>
             ) : (
-              /* Authenticated results view: displays official verified badge */
+              /* Authenticated results view */
               <div className="w-full max-w-md space-y-4 shrink-0">
-                {finalScore >= 4 ? (
+                {isPassed ? (
                   <div className="glass p-6 rounded-2xl border border-yellow-300/20 bg-slate-900/60 text-slate-200 text-xs text-left space-y-3 shadow-2xl relative overflow-hidden shrink-0">
-                    {/* Golden glows */}
                     <div className="absolute -top-12 -left-12 h-32 w-32 bg-yellow-500/10 rounded-full blur-2xl pointer-events-none"></div>
                     
                     <p className="font-extrabold text-yellow-300 uppercase tracking-widest text-[10px] flex items-center gap-1">
@@ -747,7 +849,7 @@ function MockTestEngineInner() {
                   </div>
                 ) : (
                   <div className="glass p-5 rounded-2xl border border-white/10 text-xs text-slate-400 bg-slate-900/40 shrink-0">
-                    You scored {finalScore}/5. Try again anytime to score 80% (4 out of 5) or higher to claim a certified achievement credential.
+                    You scored {finalScore}/{questions.length} ({percentage}%). Try again anytime to score 80% or higher to claim a certified achievement credential.
                   </div>
                 )}
 
@@ -773,12 +875,12 @@ function MockTestEngineInner() {
             )}
           </div>
         ) : (
-          /* Active test view - Fixed flex height absolute view */
+          /* Active test view */
           <div className="absolute inset-0 flex flex-col overflow-hidden">
             <div className="border-b border-white/10 bg-slate-950/20 px-4 py-3 flex items-center justify-between shrink-0">
               <div className="min-w-0">
-                <span className="text-[9px] font-black uppercase text-cyan-200 tracking-wider">MOCK EVALUATION ({currentIdx + 1}/5)</span>
-                <h3 className="text-base sm:text-lg font-black text-white truncate">{activeSubject}</h3>
+                <span className="text-[9px] font-black uppercase text-cyan-200 tracking-wider">MOCK EVALUATION ({currentIdx + 1}/{questions.length})</span>
+                <h3 className="text-base sm:text-lg font-black text-white truncate">{activeSubject}: {activeChapter}</h3>
               </div>
               <div className="flex items-center gap-2 rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 py-1.5 text-rose-200 text-xs font-black shrink-0">
                 <Timer size={15} />
@@ -789,9 +891,9 @@ function MockTestEngineInner() {
             <div className="thin-scrollbar flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
               <div className="glass p-5 rounded-2xl border border-white/12 space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-cyan-200 uppercase tracking-widest">Question {currentIdx + 1} of 5</span>
+                  <span className="text-[10px] font-bold text-cyan-200 uppercase tracking-widest">Question {currentIdx + 1} of {questions.length}</span>
                   <span className="rounded-lg border border-slate-700 bg-slate-800/50 px-2 py-0.5 text-[9px] text-slate-300 font-bold uppercase tracking-wider">
-                    {questions[currentIdx].difficulty} • {questions[currentIdx].type}
+                    {questions[currentIdx].difficulty} • {questions[currentIdx].bloom_level} • {questions[currentIdx].type}
                   </span>
                 </div>
 
@@ -829,7 +931,15 @@ function MockTestEngineInner() {
                       rows={4}
                       value={answers[currentIdx] || ''}
                       onChange={(e) => handleSelectAnswer(e.target.value)}
-                      placeholder="Write your answer..."
+                      placeholder={
+                        questions[currentIdx].type === 'Fill in the Blanks'
+                          ? "Enter the missing word here..."
+                          : questions[currentIdx].type === 'One Word'
+                          ? "Enter your one-word answer..."
+                          : questions[currentIdx].type === 'Full Forms'
+                          ? "Enter the complete expanded form..."
+                          : "Write your descriptive answer here..."
+                      }
                       className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.05] p-3 text-white outline-none focus:border-cyan-200/60 text-xs sm:text-sm"
                     />
                   </div>
@@ -847,7 +957,7 @@ function MockTestEngineInner() {
                 <ChevronLeft size={16} /> Prev
               </button>
 
-              {currentIdx < 4 ? (
+              {currentIdx < questions.length - 1 ? (
                 <button
                   onClick={() => setCurrentIdx((prev) => prev + 1)}
                   className="inline-flex h-10 px-4 items-center justify-center gap-1 rounded-xl bg-gradient-to-br from-white/10 to-white/5 text-slate-100 text-xs font-bold hover:bg-white/10 cursor-pointer"
