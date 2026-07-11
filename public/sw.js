@@ -1,7 +1,6 @@
 const CACHE_NAME = 'question-bank-shell-v1';
 const SHELL_ASSETS = [
   '/',
-  '/index.html',
   '/manifest.webmanifest',
   '/susanto-ganguly.png',
   '/pwa-icon-192x192.png',
@@ -46,7 +45,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put('/', copy));
           return response;
         })
-        .catch(() => caches.match('/') || caches.match('/index.html')),
+        .catch(() => caches.match('/')),
     );
     return;
   }

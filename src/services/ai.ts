@@ -1,6 +1,13 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { jsonrepair } from 'jsonrepair';
 import crypto from 'crypto';
+import {
+  BoardSectionSpec,
+  getBoardProfile,
+  getEffectiveSections,
+  getBoardTotalQuestions,
+  buildBoardContextPrompt,
+} from './boardIntelligence';
 
 export interface Question {
   id: number;
@@ -17,6 +24,12 @@ export interface Question {
   estimated_time: number; // in seconds
   source?: string;
 }
+
+type Difficulty = 'Easy' | 'Medium' | 'Hard';
+type BloomLevel = 'Remember' | 'Understand' | 'Apply' | 'Analyze' | 'Evaluate' | 'Create';
+
+// Re-export BoardSectionSpec so the rest of the app can use it
+export type { BoardSectionSpec };
 
 export interface QuestionPayload {
   board: string;
@@ -39,21 +52,126 @@ export interface GenerationResult {
   model?: string;
 }
 
-export const SECTIONS = [
-  { key: 'Section A', type: 'MCQ', name: 'Multiple Choice Questions', desc: '4 options, correct answer choice (A, B, C, or D), and detailed explanation.' },
-  { key: 'Section B', type: 'Assertion Reason', name: 'Assertion Reason', desc: 'Assertion statement, Reason statement, standard 4 choices: A (Both true and R explains A), B (Both true but R does not explain A), C (A is true, R is false), D (A is false, R is true).' },
-  { key: 'Section C', type: 'True/False', name: 'True False', desc: 'True or False statements with clear justification.' },
-  { key: 'Section D', type: 'Fill in the Blanks', name: 'Fill in the Blanks', desc: 'Statements with a single blank space represented by "________" and the correct word.' },
-  { key: 'Section E', type: 'One Word', name: 'One Word Answers', desc: 'Direct questions that can be answered in a single word.' },
-  { key: 'Section F', type: 'Full Forms', name: 'Full Forms', desc: 'Acronyms or short terms requiring their complete technical full-form expansion.' },
-  { key: 'Section G', type: 'Very Short Answer', name: 'Very Short Answers', desc: 'One-sentence simple definition or direct conceptual question.' },
-  { key: 'Section H', type: 'Short Answer', name: 'Short Answers', desc: 'Concise paragraph (2-3 sentences) requiring core points, simple examples, or key equations.' },
-  { key: 'Section I', type: 'Medium Answer', name: 'Medium Answers', desc: 'Comprehensive conceptual description (4-6 sentences) with examples, derivations, or step-by-step logic.' },
-  { key: 'Section J', type: 'Long Answer', name: 'Long Answers', desc: 'Detailed, deep essay-type question requiring complete breakdown, comparison, list of principles, or detailed code block/diagram logic.' }
+export const ASSERTION_REASON_OPTIONS = [
+  'Both A and R are true and R is the correct explanation of A.',
+  'Both A and R are true but R is not the correct explanation of A.',
+  'A is true but R is false.',
+  'A is false but R is true.',
 ];
+
+/**
+ * Returns board-specific sections. Replaces the old hardcoded SECTIONS constant.
+ * Exported so route.ts and other consumers can use it.
+ */
+export function getActiveSections(board: string, subject?: string): BoardSectionSpec[] {
+  return getEffectiveSections(board, subject);
+}
+
+/**
+ * Returns the total question count for a given board.
+ * Replaces the old TOTAL_QUESTION_COUNT constant.
+ */
+export function getActiveTotalCount(board: string): number {
+  return getBoardTotalQuestions(board);
+}
+
+/**
+ * Returns all unique question types for a given board.
+ */
+export function getActiveQuestionTypes(board: string): string[] {
+  return getEffectiveSections(board).map(s => s.type);
+}
+
+/**
+ * Returns a Set of valid question types for a given board.
+ * Used by the stale cache detector in route.ts.
+ */
+export function getActiveBoardTypes(board: string): Set<string> {
+  return new Set(getEffectiveSections(board).map(s => s.type));
+}
+
+/**
+ * Returns question type → count map for a given board.
+ */
+export function getActiveTypeCounts(board: string): Record<string, number> {
+  return Object.fromEntries(getEffectiveSections(board).map(s => [s.type, s.count]));
+}
+
+// Legacy constants kept for backward compatibility (CBSE-equivalent defaults)
+export const SECTIONS = getEffectiveSections('cbse');
+export const QUESTION_TYPE_COUNTS = getActiveTypeCounts('cbse');
+export const QUESTION_TYPES = getActiveQuestionTypes('cbse');
+export const TOTAL_QUESTION_COUNT = getActiveTotalCount('cbse');
+export const DIFFICULTY_TARGETS = { Easy: 30, Medium: 40, Hard: 30 };
 
 function clean(value: any): string {
   return String(value || '').trim();
+}
+
+function normalizeText(value: string): string {
+  return clean(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+export function normalizedQuestionKey(value: string): string {
+  return clean(value).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function getBloomLevel(difficulty: Difficulty, slotIndex: number): BloomLevel {
+  if (difficulty === 'Easy') {
+    return slotIndex % 2 === 0 ? 'Remember' : 'Understand';
+  }
+
+  if (difficulty === 'Medium') {
+    return slotIndex % 2 === 0 ? 'Apply' : 'Understand';
+  }
+
+  const hardBlooms: BloomLevel[] = ['Analyze', 'Evaluate', 'Create'];
+  return hardBlooms[slotIndex % hardBlooms.length];
+}
+
+function splitSentences(value: string): string[] {
+  return clean(value)
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+function limitSentences(value: string, maxSentences: number): string {
+  const sentences = splitSentences(value);
+  return (sentences.length ? sentences.slice(0, maxSentences).join(' ') : clean(value)).trim();
+}
+
+function countWords(value: string): number {
+  return clean(value).split(/\s+/).filter(Boolean).length;
+}
+
+function optionIndexFromLetter(value: string): number {
+  const normalized = clean(value).replace(/[^a-d]/gi, '').toUpperCase();
+  return normalized.length === 1 ? normalized.charCodeAt(0) - 65 : -1;
+}
+
+function normalizeAnswerForOptions(answer: string, options: string[]): string {
+  const letterIndex = optionIndexFromLetter(answer);
+  if (letterIndex >= 0 && letterIndex < options.length) {
+    return options[letterIndex];
+  }
+
+  const normalizedAnswer = normalizeText(answer);
+  const matchingOption = options.find((option) => normalizeText(option) === normalizedAnswer);
+  return matchingOption || clean(answer);
+}
+
+function normalizeOptions(options: any[]): string[] {
+  const seen = new Set<string>();
+  return options
+    .map(clean)
+    .filter(Boolean)
+    .filter((option) => {
+      const key = normalizeText(option);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 export function normalizePayload(body: any): QuestionPayload {
@@ -87,24 +205,34 @@ export function buildCacheKey(payload: QuestionPayload): string {
  */
 export function normalizeGeneratedQuestions(parsed: any, payload: QuestionPayload, sectionType: string): Question[] {
   const questions = Array.isArray(parsed?.questions) ? parsed.questions : [];
+  const section = getEffectiveSections(payload.board).find((item) => item.type === sectionType);
 
   return questions.map((item: any, index: number) => {
-    const difficulty = ['Easy', 'Medium', 'Hard'].includes(item?.difficulty) ? item.difficulty : 'Medium';
-    const bloom_level = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'].includes(item?.bloom_level) ? item.bloom_level : 'Understand';
+    const expectedDifficulty = section?.difficultyProfile[index] || 'Medium';
+    const difficulty = expectedDifficulty;
+    const bloom_level = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'].includes(item?.bloom_level)
+      ? item.bloom_level
+      : getBloomLevel(difficulty, index);
+    const rawOptions = normalizeOptions(Array.isArray(item?.options) ? item.options : []);
+    const options = sectionType === 'Assertion Reason'
+      ? ASSERTION_REASON_OPTIONS
+      : rawOptions;
+    const answer = normalizeAnswerForOptions(clean(item?.answer), options);
     
     return {
       id: Number(item?.id) || index + 1,
       type: sectionType,
       difficulty,
       bloom_level,
-      concept_tag: clean(item?.concept_tag) || `${payload.chapter} Core Principle`,
+      concept_tag: clean(item?.concept_tag || item?.topic_subtopic || item?.topic) || `${payload.chapter} ${sectionType} ${index + 1}`,
       learning_outcome: clean(item?.learning_outcome) || `Understand foundational concept of ${payload.chapter}`,
       question: clean(item?.question) || `Question ${index + 1} on ${payload.chapter}`,
-      options: Array.isArray(item?.options) ? item.options.map(clean).filter(Boolean) : [],
-      answer: clean(item?.answer) || 'Answer not provided.',
+      options,
+      answer: answer || 'Answer not provided.',
       explanation: clean(item?.explanation) || 'No explanation provided.',
       marks: Number(item?.marks) || (difficulty === 'Easy' ? 1 : difficulty === 'Medium' ? 2 : 4),
-      estimated_time: Number(item?.estimated_time) || (difficulty === 'Easy' ? 60 : difficulty === 'Medium' ? 120 : 240)
+      estimated_time: Number(item?.estimated_time) || (difficulty === 'Easy' ? 60 : difficulty === 'Medium' ? 120 : 240),
+      source: clean(item?.source) || undefined,
     };
   });
 }
@@ -136,12 +264,21 @@ export function getSimilarity(q1: string, q2: string): number {
  */
 export function deduplicateQuestions(questions: Question[]): Question[] {
   const uniqueQuestions: Question[] = [];
+  const questionKeys = new Set<string>();
+  const answerKeys = new Set<string>();
+  const mcqOptionSets = new Set<string>();
+  const mcqDistractors = new Set<string>();
   const conceptTags = new Set<string>();
 
   for (const q of questions) {
     let isDuplicate = false;
+    const questionKey = normalizedQuestionKey(q.question);
+    const answerKey = `${q.type}:${normalizeText(q.answer)}`;
     
-    // 1. Check Jaccard similarity against all approved questions in the list
+    if (!questionKey || questionKeys.has(questionKey) || (q.type !== 'Assertion Reason' && answerKeys.has(answerKey))) {
+      isDuplicate = true;
+    }
+
     for (const approved of uniqueQuestions) {
       const similarity = getSimilarity(q.question, approved.question);
       if (similarity > 0.70) {
@@ -150,7 +287,6 @@ export function deduplicateQuestions(questions: Question[]): Question[] {
       }
     }
 
-    // 2. Check for exact duplicate concept tags
     if (q.concept_tag) {
       const normalizedConcept = q.concept_tag.trim().toLowerCase();
       if (conceptTags.has(normalizedConcept)) {
@@ -158,10 +294,37 @@ export function deduplicateQuestions(questions: Question[]): Question[] {
       }
     }
 
+    if (q.type === 'MCQ') {
+      const optionKeys = q.options.map(normalizeText);
+      const optionSet = [...optionKeys].sort().join('|');
+
+      if (mcqOptionSets.has(optionSet)) {
+        isDuplicate = true;
+      }
+
+      for (const optionKey of optionKeys) {
+        if (optionKey !== normalizeText(q.answer) && mcqDistractors.has(optionKey)) {
+          isDuplicate = true;
+          break;
+        }
+      }
+    }
+
     if (!isDuplicate) {
       uniqueQuestions.push(q);
+      questionKeys.add(questionKey);
+      if (q.type !== 'Assertion Reason') {
+        answerKeys.add(answerKey);
+      }
       if (q.concept_tag) {
         conceptTags.add(q.concept_tag.trim().toLowerCase());
+      }
+      if (q.type === 'MCQ') {
+        mcqOptionSets.add(q.options.map(normalizeText).sort().join('|'));
+        q.options
+          .map(normalizeText)
+          .filter((optionKey) => optionKey !== normalizeText(q.answer))
+          .forEach((optionKey) => mcqDistractors.add(optionKey));
       }
     } else {
       console.warn(`Duplicate filtered out by semantic check: "${q.question}"`);
@@ -171,55 +334,211 @@ export function deduplicateQuestions(questions: Question[]): Question[] {
   return uniqueQuestions;
 }
 
-function buildSectionPrompt(payload: QuestionPayload, section: typeof SECTIONS[0], startId: number): string {
-  return `
-Generate exactly 10 unique, high-quality, board-aligned exam questions for the selected:
-Board: ${payload.board}
-Class: ${payload.className}
-Subject: ${payload.subject}
-Chapter: ${payload.chapter}
-
-These questions must belong strictly to: ${section.key} - ${section.name}.
-Question Type Description: ${section.desc}
-
-You MUST apply this exact Easy -> Medium -> Hard difficulty and Bloom's Taxonomy progression for these 10 questions:
-- Question 1 (ID ${startId + 0}): Easy, Bloom's Level: 'Remember', Marks: 1, Est. Time: 60s
-- Question 2 (ID ${startId + 1}): Easy, Bloom's Level: 'Remember', Marks: 1, Est. Time: 60s
-- Question 3 (ID ${startId + 2}): Easy, Bloom's Level: 'Understand', Marks: 1, Est. Time: 60s
-- Question 4 (ID ${startId + 3}): Medium, Bloom's Level: 'Understand', Marks: 2, Est. Time: 120s
-- Question 5 (ID ${startId + 4}): Medium, Bloom's Level: 'Apply', Marks: 2, Est. Time: 120s
-- Question 6 (ID ${startId + 5}): Medium, Bloom's Level: 'Apply', Marks: 2, Est. Time: 120s
-- Question 7 (ID ${startId + 6}): Hard, Bloom's Level: 'Analyze', Marks: 3, Est. Time: 180s
-- Question 8 (ID ${startId + 7}): Hard, Bloom's Level: 'Analyze', Marks: 3, Est. Time: 180s
-- Question 9 (ID ${startId + 8}): Hard, Bloom's Level: 'Evaluate', Marks: 4, Est. Time: 240s
-- Question 10 (ID ${startId + 9}): Hard, Bloom's Level: 'Create', Marks: 5, Est. Time: 300s
-
-Quality Guidelines:
-- Questions must be rich, academic, highly professional, and match the official Board guidelines. Focus on practical exam-style application, real equations, and logical derivations instead of generic definition placeholders.
-- Formulas must be beautifully formatted in LaTeX (e.g. use \\Omega, \\frac{V}{R}, \\times).
-- Use double backslashes in JSON strings for LaTeX (e.g. "\\\\Omega", "\\\\frac{V}{R}").
-- Return strictly valid JSON matching the schema below. Do not wrap it in markdown formatting fences.
-
-JSON Schema:
-{
-  "questions": [
-    {
-      "id": number,
-      "type": "${section.type}",
-      "difficulty": "Easy | Medium | Hard",
-      "bloom_level": "Remember | Understand | Apply | Analyze | Evaluate | Create",
-      "concept_tag": "string concept tested (1-3 words)",
-      "learning_outcome": "string learning objective outcome",
-      "question": "string with LaTeX support",
-      "options": ["A", "B", "C", "D"], -- Array of 4 items for MCQ or Assertion Reason, 2 items for True/False ("True", "False"), empty array [] for others
-      "answer": "string correct answer value",
-      "explanation": "string detailed explanation",
-      "marks": number,
-      "estimated_time": number
-    }
-  ]
+function hasBannedMcqOption(options: string[]): boolean {
+  return options.some((option) => {
+    const normalized = normalizeText(option);
+    return normalized === 'all of the above' || normalized === 'none of the above';
+  });
 }
-`;
+
+function hasRequiredAnswerLength(q: Question): boolean {
+  if (q.type === 'Very Short Answer') {
+    return splitSentences(q.answer).length <= 1 && countWords(q.answer) <= 20;
+  }
+
+  if (q.type === 'Short Answer') {
+    const count = splitSentences(q.answer).length;
+    return count >= 2 && count <= 4;
+  }
+
+  if (q.type === 'Medium Answer') {
+    const count = splitSentences(q.answer).length;
+    return count >= 4 && count <= 7;
+  }
+
+  if (q.type === 'Long Answer') {
+    const count = splitSentences(q.answer).length;
+    return count >= 5 && count <= 10;
+  }
+
+  return true;
+}
+
+export function validateQuestion(q: Question, payload?: QuestionPayload): boolean {
+  // ─── BOARD-TYPE VALIDATION (critical: reject stale cached questions) ───
+  // If we know the board, only accept question types that belong to that board's profile.
+  // This prevents old generic MCQ/Fill-in-Blanks questions from being served for UPSC/JEE/etc.
+  if (payload?.board) {
+    const boardSections = getEffectiveSections(payload.board);
+    const validTypes = new Set(boardSections.map(s => s.type));
+    if (!validTypes.has(q.type)) return false;
+  } else {
+    // Board-agnostic: at minimum check it's a non-empty string
+    if (!q.type || typeof q.type !== 'string') return false;
+  }
+
+  if (!['Easy', 'Medium', 'Hard'].includes(q.difficulty)) return false;
+  if (!['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'].includes(q.bloom_level)) return false;
+  if (!clean(q.question) || !clean(q.answer) || !clean(q.explanation) || !clean(q.concept_tag)) return false;
+  if (q.source === 'local-fallback' || q.source === 'starter') return false;
+  if (payload && (!payload.board || !payload.subject || !payload.chapter)) return false;
+
+  // ─── STALE CONTENT DETECTOR ───
+  // Reject any question that still contains the generic template text pattern
+  // e.g. "Parliament in Indian Polity" or "concept X helps solve a board-level problem"
+  const genericPhrases = [
+    'helps solve a board-level problem',
+    'board-level problem',
+    'a practical problem in',
+    'a multi-step question from',
+    'an exam-style question from',
+    'concept1 identifies',
+    'principle1 identifies',
+    'relation1',
+    'concept2 identifies',
+  ];
+  const questionLower = q.question.toLowerCase();
+  const answerLower = q.answer.toLowerCase();
+  if (genericPhrases.some(phrase => questionLower.includes(phrase) || answerLower.includes(phrase))) {
+    return false;
+  }
+
+  // ─── TYPE-SPECIFIC VALIDATION ───
+
+  // MCQ validation (works for all MCQ-type questions regardless of board)
+  const isMcqType = q.type === 'MCQ' || q.type === 'UPSC MCQ' || q.type === 'Multi-Concept MCQ'
+    || q.type === 'General Awareness' || q.type === 'Technical MCQ' || q.type === 'Multi-Correct MCQ'
+    || q.type === 'General Test MCQ' || q.type === 'Reasoning';
+    
+  if (isMcqType) {
+    const options = normalizeOptions(q.options);
+    if (options.length !== 4 || hasBannedMcqOption(options)) return false;
+    // For multi-correct MCQs, the answer can be a combination (e.g., "A and C")
+    if (q.type === 'Multi-Correct MCQ') return clean(q.answer).length > 0;
+    return options.map(normalizeText).includes(normalizeText(q.answer));
+  }
+
+  if (q.type === 'Fill in the Blanks') {
+    return q.question.includes('________');
+  }
+
+  if (q.type === 'One Word') {
+    return countWords(q.answer) <= 2;
+  }
+
+  if (q.type === 'Full Forms') {
+    return /full[\s-]?form/i.test(q.question) || /what does .* stand for/i.test(q.question);
+  }
+
+  if (q.type === 'Assertion Reason') {
+    return q.question.includes('Assertion') &&
+      q.question.includes('Reason') &&
+      q.options.length === 4 &&
+      ASSERTION_REASON_OPTIONS.every((option, index) => normalizeText(option) === normalizeText(q.options[index])) &&
+      ASSERTION_REASON_OPTIONS.map(normalizeText).includes(normalizeText(q.answer));
+  }
+
+  if (q.type === 'True False') {
+    return q.answer === 'True' || q.answer === 'False';
+  }
+
+  if (q.type === 'Match the Following') {
+    return clean(q.question).length > 10 && clean(q.answer).length > 0;
+  }
+
+  if (q.type === 'Numerical Type') {
+    // For JEE/CAT numerical type — answer is a number
+    return clean(q.answer).length > 0;
+  }
+
+  if (q.type === 'Reading Comprehension') {
+    return clean(q.question).length > 50; // Passage-based must be longer
+  }
+
+  // For all answer-length types (SA, MA, LA, VSA, definition, theory, output, etc.)
+  return hasRequiredAnswerLength(q);
+}
+
+export function validateQuestionSet(questions: Question[], payload: QuestionPayload, exactCount?: number): Question[] {
+  // Get board-specific sections and counts
+  const boardSections = getEffectiveSections(payload.board);
+  const boardTypeCounts = boardSections.reduce<Record<string, number>>((counts, section) => {
+    counts[section.type] = (counts[section.type] || 0) + section.count;
+    return counts;
+  }, {});
+  const typeOrder = Array.from(new Set(boardSections.map((section) => section.type)));
+  const boardTotalCount = exactCount !== undefined ? exactCount : getBoardTotalQuestions(payload.board);
+
+  const normalized = questions.map((q, index) => ({
+    ...q,
+    id: index + 1,
+    question: clean(q.question),
+    answer: clean(q.answer),
+    explanation: clean(q.explanation),
+    concept_tag: clean(q.concept_tag),
+    learning_outcome: clean(q.learning_outcome),
+    options: normalizeOptions(q.options || []),
+  }));
+
+  const valid = deduplicateQuestions(normalized.filter((q) => validateQuestion(q, payload)));
+  const byType = new Map<string, Question[]>();
+
+  for (const section of boardSections) {
+    byType.set(section.type, []);
+  }
+
+  for (const q of valid) {
+    const bucket = byType.get(q.type);
+    const target = boardTypeCounts[q.type] || 0;
+    if (bucket && bucket.length < target) {
+      bucket.push(q);
+    }
+  }
+
+  const selected = typeOrder.flatMap((type) => byType.get(type) || []);
+
+  return selected.map((q, index) => ({ ...q, id: index + 1 }));
+}
+
+function buildSectionPrompt(payload: QuestionPayload, section: BoardSectionSpec, startId: number): string {
+  const plan = section.difficultyProfile
+    .map((difficulty, index) => `ID ${startId + index}: ${difficulty}/${getBloomLevel(difficulty, index)}`)
+    .join(', ');
+
+  // Get the full board intelligence context
+  const boardContext = buildBoardContextPrompt(payload.board, payload.subject, payload.chapter, payload.className);
+
+  return `${boardContext}
+
+You are generating Section ${section.key} — ${section.name} (Type: ${section.type})
+
+SECTION INSTRUCTIONS:
+${section.desc}
+
+Generate EXACTLY ${section.count} questions for: ${payload.subject} → ${payload.chapter}
+
+Difficulty + Bloom Level Plan (follow exactly):
+${plan}
+
+ADDITIONAL RULES:
+- Each question must test a DIFFERENT sub-concept within ${payload.chapter}
+- Questions must be authentic ${payload.board} examination questions — not generic academic questions
+- Follow the exact language style, format, and terminology of ${payload.board}
+- Avoid repeated concepts, repeated answers, duplicate wording
+- For MCQ: provide exactly 4 realistic options; exactly one correct; avoid "All of the above" and "None of the above"
+- For Assertion Reason: use EXACTLY these four options in this order:
+  (a) ${ASSERTION_REASON_OPTIONS[0]}
+  (b) ${ASSERTION_REASON_OPTIONS[1]}
+  (c) ${ASSERTION_REASON_OPTIONS[2]}
+  (d) ${ASSERTION_REASON_OPTIONS[3]}
+- Answer length rules:
+  * Very Short Answer: 1 sentence, ≤ 20 words
+  * Short Answer: 2–4 sentences
+  * Medium Answer: 4–7 sentences  
+  * Long Answer: 5–10 sentences (never exceed 10)
+- Return ONLY a valid JSON object — no markdown, no commentary:
+
+{"questions":[{"id":${startId},"type":"${section.type}","difficulty":"Easy","bloom_level":"Remember","concept_tag":"1-3 word concept","learning_outcome":"what student learns","question":"question text","options":[],"answer":"correct answer","explanation":"why this is correct","marks":${section.marks},"estimated_time":60}]}`;
 }
 
 function stripJsonFence(text: string): string {
@@ -469,113 +788,83 @@ function getCuratedChapterKey(chapter: string): string | null {
 }
 
 /**
- * Rich Fallback question bank generator supporting all 10 sections A to J programmatically
+ * Rich Fallback question bank generator — uses board-specific sections
  */
-export function buildLocalFallback(payload: QuestionPayload, count = 100, startId = 1, reason = 'Fallback starter questions'): GenerationResult {
-  const curatedKey = getCuratedChapterKey(payload.chapter);
+export function buildLocalFallback(payload: QuestionPayload, count?: number, startId = 1, reason = 'Fallback starter questions'): GenerationResult {
+  const boardSections = getEffectiveSections(payload.board);
+  const boardTotal = getBoardTotalQuestions(payload.board);
+  const effectiveCount = count !== undefined ? count : boardTotal;
 
-  const questions = Array.from({ length: count }, (_, index) => {
-    const totalIndex = startId + index - 1;
-    const sectionIdx = Math.floor(totalIndex / 10) % SECTIONS.length;
-    const section = SECTIONS[sectionIdx];
-    const qInSecIdx = totalIndex % 10;
-    
-    // Check if we have premium custom curated question for this specific section type and slot
-    if (curatedKey && CURATED_FALLBACK_DATABASE[curatedKey]?.[section.type]?.[qInSecIdx]) {
-      const q = CURATED_FALLBACK_DATABASE[curatedKey][section.type][qInSecIdx];
-      return {
-        id: totalIndex + 1,
-        type: section.type,
-        difficulty: q.difficulty,
-        bloom_level: q.bloom_level,
-        concept_tag: q.concept_tag,
-        learning_outcome: q.learning_outcome,
-        question: q.question,
-        options: q.options || [],
-        answer: q.answer,
-        explanation: q.explanation,
-        marks: q.difficulty === 'Easy' ? 1 : q.difficulty === 'Medium' ? 2 : 4,
-        estimated_time: q.difficulty === 'Easy' ? 60 : q.difficulty === 'Medium' ? 120 : 240,
-        source: 'local-fallback'
-      };
-    }
+  const allSlots = boardSections.flatMap((section) =>
+    section.difficultyProfile.map((difficulty, slotIndex) => ({ section, difficulty, slotIndex }))
+  );
 
-    // Default programmatic generation
-    let difficulty = 'Medium';
-    let bloom_level = 'Understand';
-    let marks = 2;
-    let estimated_time = 120;
-    
-    if (qInSecIdx <= 2) {
-      difficulty = 'Easy';
-      bloom_level = qInSecIdx === 2 ? 'Understand' : 'Remember';
-      marks = 1;
-      estimated_time = 60;
-    } else if (qInSecIdx <= 5) {
-      difficulty = 'Medium';
-      bloom_level = qInSecIdx === 3 ? 'Understand' : 'Apply';
-      marks = 2;
-      estimated_time = 120;
-    } else {
-      difficulty = 'Hard';
-      bloom_level = qInSecIdx <= 7 ? 'Analyze' : qInSecIdx === 8 ? 'Evaluate' : 'Create';
-      marks = qInSecIdx === 8 ? 4 : qInSecIdx === 9 ? 5 : 3;
-      estimated_time = qInSecIdx === 8 ? 240 : qInSecIdx === 9 ? 300 : 180;
-    }
-
-    const concept = `${payload.chapter} Core Concept ${qInSecIdx + 1}`;
+  const questions = allSlots.slice(startId - 1, startId - 1 + effectiveCount).map(({ section, difficulty, slotIndex }, index) => {
+    const id = startId + index;
+    const concept = `${payload.chapter} ${section.name.replace(/ Questions?$/, '')} ${slotIndex + 1}`;
     const base = `${payload.chapter} in ${payload.subject}`;
+    const bloom_level = getBloomLevel(difficulty, slotIndex);
+    const marks = difficulty === 'Easy' ? 1 : difficulty === 'Medium' ? 2 : 4;
+    const estimated_time = difficulty === 'Easy' ? 60 : difficulty === 'Medium' ? 120 : 240;
+    const uniqueToken = `${section.key.replace(/\s+/g, '')}-${slotIndex + 1}`;
 
-    let qText = `Describe the standard mathematical and physical principles of **${concept}** within **${base}** for ${payload.board} curriculum.`;
+    let question = `Explain how ${concept} helps solve a board-level problem from ${base}.`;
     let options: string[] = [];
-    let answer = 'Concept-aligned solution.';
-    let explanation = `This question evaluates the student's mastery, mathematical analysis, and practical reasoning of ${concept} in ${base}.`;
+    let answer = `${concept} connects the chapter idea with a clear method, a relevant example, and a justified result.`;
+    let explanation = `This item targets ${concept} and keeps the answer tied to ${payload.board} ${payload.className} ${payload.subject}.`;
 
     if (section.type === 'MCQ') {
-      qText = `Which of the following describes a key operational principle of **${concept}** inside **${base}**?`;
-      options = [`Primary foundation of ${concept}`, `Secondary variable of ${base}`, `Unrelated constant`, `None of the above`];
-      answer = `Primary foundation of ${concept}`;
-    } else if (section.type === 'Assertion Reason') {
-      qText = `Assertion: Understanding ${concept} is necessary before attempting advanced numerical equations.\n\nReason: It establishes the structural, causal relationships between variables.`;
+      question = `Which option best applies ${concept} to a practical problem in ${base}?`;
       options = [
-        'Both A and R are true, and R is the correct explanation of A',
-        'Both A and R are true, but R is not the correct explanation of A',
-        'A is true but R is false',
-        'A is false but R is true'
+        `Use ${uniqueToken} to identify the governing relation`,
+        `Ignore ${uniqueToken} and select values randomly`,
+        `Replace ${uniqueToken} with an unrelated chapter term`,
+        `Use ${uniqueToken} only after discarding the given data`,
       ];
-      answer = 'Both A and R are true, and R is the correct explanation of A';
-    } else if (section.type === 'True/False') {
-      qText = `True or False: The application of **${concept}** directly reduces structural calculation error in **${base}**.`;
-      options = ['True', 'False'];
-      answer = 'True';
+      answer = options[0];
     } else if (section.type === 'Fill in the Blanks') {
-      qText = `Inside ${payload.subject}, **${concept}** is defined as the ________ parameter governing this equation.`;
-      options = [];
-      answer = "principal";
+      question = `In ${base}, ${concept} is used to identify the ________ before solving the problem.`;
+      answer = `relation${slotIndex + 1}`;
     } else if (section.type === 'One Word') {
-      qText = `What standard scientific term defines the structural core of **${concept}** in ${payload.subject}?`;
-      options = [];
-      answer = "Core";
+      question = `Which one-word term names the main idea tested by ${concept} in ${base}?`;
+      answer = `Concept${slotIndex + 1}`;
     } else if (section.type === 'Full Forms') {
-      qText = `What is the expanded scientific full-form representation of the common abbreviation **${payload.chapter.slice(0,3).toUpperCase()}-M**?`;
-      options = [];
-      answer = `${payload.chapter} Model`;
+      const abbreviation = `${payload.chapter.replace(/[^a-z]/gi, '').slice(0, 3).toUpperCase() || 'CHP'}${slotIndex + 1}`;
+      question = `What is the full form of ${abbreviation} in the context of ${base}?`;
+      answer = `${payload.chapter} Applied Learning ${slotIndex + 1}`;
+    } else if (section.type === 'Assertion Reason') {
+      question = `Assertion (A): ${concept} helps students choose a suitable method for a problem in ${base}.\n\nReason (R): It links the known data, required result, and relevant principle before calculation.`;
+      options = ASSERTION_REASON_OPTIONS;
+      answer = ASSERTION_REASON_OPTIONS[0];
+      explanation = `Both statements are true, and the reason explains why ${concept} supports correct problem solving.`;
+    } else if (section.type === 'Very Short Answer') {
+      question = `State the purpose of ${concept} in ${base}.`;
+      answer = `Principle${slotIndex + 1} identifies the needed method.`;
+    } else if (section.type === 'Short Answer') {
+      question = `Describe the role of ${concept} in solving a question from ${base}.`;
+      answer = `${concept} identifies the relevant principle. It connects the given data with the required result. A student should then apply the suitable formula or reasoning step.`;
+    } else if (section.type === 'Medium Answer') {
+      question = `Analyze how ${concept} can be used in a multi-step question from ${base}.`;
+      answer = `${concept} first clarifies what the question is testing. It helps separate given information from the unknown result. The student then selects the relevant rule or relationship. Next, the rule is applied carefully to the data. Finally, the result is checked against the concept to confirm that it is reasonable.`;
+    } else if (section.type === 'Long Answer') {
+      question = `Evaluate a complete method for using ${concept} in an exam-style question from ${base}.`;
+      answer = `${concept} should begin with a clear reading of the problem. The student should list the given facts and identify the required outcome. Then the relevant principle from ${payload.chapter} must be selected. The solution should connect each step to that principle. If a calculation is needed, units and substitutions should be shown clearly. The final result should be checked for reasonableness. This method reduces guessing and improves conceptual accuracy.`;
     }
 
     return {
-      id: totalIndex + 1,
+      id,
       type: section.type,
       difficulty,
       bloom_level,
       concept_tag: concept,
-      learning_outcome: `Evaluate competency in ${concept}`,
-      question: qText,
+      learning_outcome: `Demonstrate ${bloom_level.toLowerCase()} level understanding of ${concept}`,
+      question,
       options,
-      answer,
+      answer: limitSentences(answer, section.type === 'Long Answer' ? 10 : 7),
       explanation,
       marks,
       estimated_time,
-      source: 'local-fallback'
+      source: 'local-fallback',
     };
   });
 
@@ -585,12 +874,30 @@ export function buildLocalFallback(payload: QuestionPayload, count = 100, startI
     className: payload.className,
     subject: payload.subject,
     chapter: payload.chapter,
-    questions,
+    questions: validateQuestionSet(questions, payload),
     generatedAt: new Date().toISOString(),
     cacheable: false,
     resilient: true,
     provider: 'starter'
   };
+}
+
+function getSectionStartIds(board: string): Map<string, number> {
+  const sections = getEffectiveSections(board);
+  const starts = new Map<string, number>();
+  let nextId = 1;
+
+  for (const section of sections) {
+    starts.set(section.key, nextId);
+    nextId += section.count;
+  }
+
+  return starts;
+}
+
+function buildStandardQuestionSet(payload: QuestionPayload, candidates: Question[]): Question[] {
+  const validated = validateQuestionSet(candidates, payload);
+  return validated.map((question, index) => ({ ...question, id: index + 1 }));
 }
 
 async function runWithConcurrency<T, R>(items: T[], concurrency: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
@@ -613,17 +920,47 @@ async function runWithConcurrency<T, R>(items: T[], concurrency: number, worker:
   return results;
 }
 
+/** Maximum questions to request per single LLM call (prevents token limit hits) */
+const MAX_QUESTIONS_PER_CALL = 8;
+
 /**
- * Concurrently generates exactly 10 questions in a section using Llama 3.1 8B via Groq API
+ * Split a section into chunks of MAX_QUESTIONS_PER_CALL each.
+ * Returns an array of mini-sections with adjusted counts and difficulty profiles.
  */
-async function generateWithLlama(payload: QuestionPayload, section: typeof SECTIONS[0], startId: number): Promise<Question[]> {
-  const groqApiKey = process.env.GROQ_API_KEY;
+function chunkSection(section: BoardSectionSpec, globalStartId: number): Array<{ mini: BoardSectionSpec; startId: number }> {
+  if (section.count <= MAX_QUESTIONS_PER_CALL) {
+    return [{ mini: section, startId: globalStartId }];
+  }
+
+  const chunks: Array<{ mini: BoardSectionSpec; startId: number }> = [];
+  let offset = 0;
+
+  while (offset < section.count) {
+    const chunkSize = Math.min(MAX_QUESTIONS_PER_CALL, section.count - offset);
+    const mini: BoardSectionSpec = {
+      ...section,
+      count: chunkSize,
+      difficultyProfile: section.difficultyProfile.slice(offset, offset + chunkSize),
+      key: `${section.key} (${Math.floor(offset / MAX_QUESTIONS_PER_CALL) + 1})`,
+    };
+    chunks.push({ mini, startId: globalStartId + offset });
+    offset += chunkSize;
+  }
+
+  return chunks;
+}
+
+/**
+ * Generates one section CHUNK using Llama via Groq API.
+ * Includes automatic retry with exponential backoff for rate limit errors.
+ */
+async function generateWithLlama(payload: QuestionPayload, section: BoardSectionSpec, startId: number, retryCount = 0): Promise<Question[]> {
+  const groqApiKey = (process.env.GROQ_API_KEY || '').replace(/[\r\n]/g, '').trim();
   if (!groqApiKey) return [];
 
-  const modelName = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
-  const timeoutMs = Number(process.env.GROQ_TIMEOUT_MS || 35000);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const modelName = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  const timeoutMs = Number(process.env.GROQ_TIMEOUT_MS || 45000);
+  const maxRetries = 2; // Reduced — we don't want to wait 98s multiple times
 
   const prompt = buildSectionPrompt(payload, section, startId);
 
@@ -632,16 +969,19 @@ async function generateWithLlama(payload: QuestionPayload, section: typeof SECTI
     messages: [
       {
         role: 'system',
-        content: 'You generate high-quality educational exam questions. Return strictly valid JSON that matches the requested schema. Focus on creating practical, exam-grade, numerical-based or logical derivation questions tailored to the board curriculum.',
+        content: 'You are an expert exam question creator. Return ONLY a valid JSON object with a "questions" array. No markdown, no commentary.',
       },
       {
         role: 'user',
         content: prompt,
       },
     ],
-    temperature: 0.5,
-    response_format: { type: 'json_object' }
+    temperature: 0.65,
+    max_tokens: 4000, // Increased from 2500 to handle richer questions
   };
+
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/chat/completions', {
@@ -656,28 +996,37 @@ async function generateWithLlama(payload: QuestionPayload, section: typeof SECTI
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      const message = errData?.error?.message || `Groq Llama request failed with status ${response.status}`;
+      const message = errData?.error?.message || `Groq request failed: ${response.status}`;
+
+      // Handle rate limit — cap wait at 30s max (don't wait 98s)
+      if ((response.status === 429 || message.includes('Rate limit')) && retryCount < maxRetries) {
+        const waitMatch = message.match(/(\d+\.?\d*)s/);
+        const rawWait = waitMatch ? Math.ceil(parseFloat(waitMatch[1]) * 1000) + 500 : Math.pow(2, retryCount + 1) * 5000;
+        const waitMs = Math.min(rawWait, 30000); // Cap at 30 seconds
+        console.log(`[Groq Rate Limit] ${section.key}: waiting ${waitMs}ms (capped) before retry ${retryCount + 1}/${maxRetries}...`);
+        await new Promise(r => setTimeout(r, waitMs));
+        return generateWithLlama(payload, section, startId, retryCount + 1);
+      }
+
       throw new Error(message);
     }
 
     const data = await response.json();
     const content = data?.choices?.[0]?.message?.content || '';
     const parsed = parseJson(content);
-    const rawQuestions = normalizeGeneratedQuestions(parsed, payload, section.type);
+    const rawQuestions = normalizeGeneratedQuestions(parsed, payload, section.type).slice(0, section.count);
     
-    return rawQuestions.map((q, idx) => ({
-      ...q,
-      id: startId + idx
-    }));
+    console.log(`[Llama OK] ${section.key}: ${rawQuestions.length}/${section.count} questions`);
+    return rawQuestions.map((q, idx) => ({ ...q, id: startId + idx }));
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(timeoutHandle);
   }
 }
 
 /**
- * Concurrently generates exactly 10 questions in a section using Gemini API
+ * Generates one standards-defined section using Gemini API.
  */
-async function generateWithGemini(payload: QuestionPayload, section: typeof SECTIONS[0], startId: number): Promise<Question[]> {
+async function generateWithGemini(payload: QuestionPayload, section: BoardSectionSpec, startId: number): Promise<Question[]> {
   const geminiApiKey = process.env.GEMINI_API_KEY;
   if (!geminiApiKey) return [];
 
@@ -707,7 +1056,7 @@ async function generateWithGemini(payload: QuestionPayload, section: typeof SECT
 
     const text = result.response.text();
     const parsed = parseJson(text);
-    const rawQuestions = normalizeGeneratedQuestions(parsed, payload, section.type);
+    const rawQuestions = normalizeGeneratedQuestions(parsed, payload, section.type).slice(0, section.count);
     
     return rawQuestions.map((q, idx) => ({
       ...q,
@@ -720,81 +1069,42 @@ async function generateWithGemini(payload: QuestionPayload, section: typeof SECT
 }
 
 /**
- * Concurrently generates exactly 100 questions split into Section A to J (10 questions per section)
- * Prioritizes Groq Llama 3.1 8B Search-First Brain, falls back to Gemini, and finally premium curated database.
+ * Generates questions for the given board/class/subject/chapter.
+ * Strategy: Gemini PRIMARY (concurrent, no token limits) → Groq SECONDARY (chunked, 8q/call) → Local fallback.
  */
 export async function generateQuestions(payload: QuestionPayload): Promise<GenerationResult> {
   const groqApiKey = process.env.GROQ_API_KEY;
   const geminiApiKey = process.env.GEMINI_API_KEY;
-  const concurrency = Math.min(Math.max(Number(process.env.GEMINI_BATCH_CONCURRENCY || 3), 1), 5);
+  const concurrency = Math.min(Math.max(Number(process.env.GEMINI_BATCH_CONCURRENCY || 4), 1), 6);
 
-  // 1. Try Llama first as the primary brain if GROQ_API_KEY is configured
-  if (groqApiKey) {
-    try {
-      console.log('Invoking Primary Llama 3.1 8B Search-First Brain concurrently...');
-      const results = await runWithConcurrency(SECTIONS, concurrency, async (section, sIdx) => {
-        const startId = sIdx * 10 + 1;
-        return generateWithLlama(payload, section, startId);
-      });
+  // Get board-specific sections
+  const boardSections = getEffectiveSections(payload.board);
+  const boardTotalCount = getBoardTotalQuestions(payload.board);
+  const sectionStartIds = getSectionStartIds(payload.board);
+  const minRealQuestionThreshold = Math.ceil(boardTotalCount * 0.9);
 
-      let allQuestions = results.flat();
-      const uniqueQuestions = deduplicateQuestions(allQuestions);
+  console.log(`[BoardIntelligence] Board: ${payload.board} → ${boardSections.length} sections, ${boardTotalCount} total questions`);
+  console.log(`[BoardIntelligence] Section types: ${boardSections.map(s => s.type).join(', ')}`);
 
-      let finalQuestions: Question[] = [];
-      for (let i = 1; i <= 100; i++) {
-        const found = uniqueQuestions.find(q => q.id === i);
-        if (found) {
-          finalQuestions.push(found);
-        } else {
-          const fallbackSet = buildLocalFallback(payload, 1, i);
-          finalQuestions.push(fallbackSet.questions[0]);
-        }
-      }
-
-      if (uniqueQuestions.length >= 80) { // Keep if mostly successful
-        return {
-          title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
-          board: payload.board,
-          className: payload.className,
-          subject: payload.subject,
-          chapter: payload.chapter,
-          questions: finalQuestions,
-          generatedAt: new Date().toISOString(),
-          cacheable: true,
-          resilient: uniqueQuestions.length < 100,
-          provider: 'groq',
-          model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant'
-        };
-      }
-    } catch (e) {
-      console.warn('Primary Llama 3.1 8B brain failed, trying fallback Gemini brain...', e);
-    }
-  }
-
-  // 2. Try Gemini second if Llama fails or is not configured
+  // ─────────────────────────────────────────────────────────────────────────
+  // 1. GEMINI PRIMARY — concurrent, handles any section size, no rate limits
+  // ─────────────────────────────────────────────────────────────────────────
   if (geminiApiKey) {
     try {
-      console.log('Invoking Fallback Gemini Brain concurrently...');
-      const results = await runWithConcurrency(SECTIONS, concurrency, async (section, sIdx) => {
-        const startId = sIdx * 10 + 1;
+      console.log(`[Gemini] PRIMARY: Generating ${boardTotalCount} ${payload.board} questions concurrently...`);
+
+      const results = await runWithConcurrency(boardSections, concurrency, async (section) => {
+        const startId = sectionStartIds.get(section.key) || 1;
         return generateWithGemini(payload, section, startId);
       });
 
-      let allQuestions = results.flat();
-      const uniqueQuestions = deduplicateQuestions(allQuestions);
+      const allQuestions = results.flat();
+      const uniqueQuestions = validateQuestionSet(allQuestions, payload);
 
-      let finalQuestions: Question[] = [];
-      for (let i = 1; i <= 100; i++) {
-        const found = uniqueQuestions.find(q => q.id === i);
-        if (found) {
-          finalQuestions.push(found);
-        } else {
-          const fallbackSet = buildLocalFallback(payload, 1, i);
-          finalQuestions.push(fallbackSet.questions[0]);
-        }
-      }
+      console.log(`[Gemini] ${uniqueQuestions.length}/${boardTotalCount} valid unique questions`);
 
-      if (uniqueQuestions.length >= 80) {
+      if (uniqueQuestions.length >= minRealQuestionThreshold) {
+        const finalQuestions = buildStandardQuestionSet(payload, uniqueQuestions);
         return {
           title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
           board: payload.board,
@@ -804,16 +1114,83 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
           questions: finalQuestions,
           generatedAt: new Date().toISOString(),
           cacheable: true,
-          resilient: uniqueQuestions.length < 100,
+          resilient: uniqueQuestions.length < boardTotalCount,
           provider: 'gemini',
-          model: process.env.GEMINI_MODEL || 'gemini-2.0-flash'
+          model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
         };
       }
+
+      console.warn(`[Gemini] Only ${uniqueQuestions.length}/${boardTotalCount} questions. Trying Groq fallback...`);
     } catch (e) {
-      console.warn('Fallback Gemini brain failed, showing premium curated fallback...', e);
+      console.warn('[Gemini] PRIMARY brain failed, trying Groq fallback...', e);
     }
   }
 
-  // 3. Last resort premium local fallback
-  return buildLocalFallback(payload, 100, 1, 'AI Engine fallback models failed, showing local starter questions.');
+  // ─────────────────────────────────────────────────────────────────────────
+  // 2. GROQ/LLAMA SECONDARY — chunked (≤8q per call) to avoid rate limits
+  // ─────────────────────────────────────────────────────────────────────────
+  const cleanGroqKey = (groqApiKey || '').replace(/[\r\n]/g, '').trim();
+  if (cleanGroqKey) {
+    try {
+      console.log(`[Groq] SECONDARY: Generating chunked questions for ${payload.board}...`);
+      const allChunks: Array<{ mini: BoardSectionSpec; startId: number }> = [];
+
+      for (const section of boardSections) {
+        const startId = sectionStartIds.get(section.key) || 1;
+        allChunks.push(...chunkSection(section, startId));
+      }
+
+      console.log(`[Groq] ${allChunks.length} chunks to process (max ${MAX_QUESTIONS_PER_CALL}q each)`);
+
+      const groqResults: Question[][] = [];
+      let groqSuccessChunks = 0;
+
+      for (let cIdx = 0; cIdx < allChunks.length; cIdx++) {
+        const { mini, startId } = allChunks[cIdx];
+        try {
+          const chunkQs = await generateWithLlama(payload, mini, startId);
+          groqResults.push(chunkQs);
+          if (chunkQs.length > 0) groqSuccessChunks++;
+          // Short inter-chunk pause to avoid TPM spikes
+          if (cIdx < allChunks.length - 1) {
+            await new Promise(r => setTimeout(r, 800));
+          }
+        } catch (chunkErr: any) {
+          console.error(`[Groq] Chunk ${mini.key} failed:`, chunkErr.message);
+          groqResults.push([]);
+        }
+      }
+
+      const allQuestions = groqResults.flat();
+      const uniqueQuestions = validateQuestionSet(allQuestions, payload);
+
+      console.log(`[Groq] ${uniqueQuestions.length}/${boardTotalCount} valid (${groqSuccessChunks}/${allChunks.length} chunks OK)`);
+
+      if (uniqueQuestions.length >= minRealQuestionThreshold) {
+        const finalQuestions = buildStandardQuestionSet(payload, uniqueQuestions);
+        return {
+          title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
+          board: payload.board,
+          className: payload.className,
+          subject: payload.subject,
+          chapter: payload.chapter,
+          questions: finalQuestions,
+          generatedAt: new Date().toISOString(),
+          cacheable: true,
+          resilient: uniqueQuestions.length < boardTotalCount,
+          provider: 'groq',
+          model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+        };
+      }
+    } catch (e) {
+      console.warn('[Groq] SECONDARY brain failed.', e);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 3. LAST RESORT — local structured fallback
+  // ─────────────────────────────────────────────────────────────────────────
+  throw new Error(
+    `AI could not generate enough real ${payload.board} questions for ${payload.className} ${payload.subject} - ${payload.chapter}. Please retry after a moment; no starter questions were saved.`,
+  );
 }

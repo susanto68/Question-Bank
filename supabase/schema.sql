@@ -41,12 +41,19 @@ create table if not exists public.question_bank (
   class_name text not null,
   subject text not null,
   chapter text not null,
-  type text not null, -- MCQ, Short Answer, Long Answer, True/False, Assertion Reason, Numerical
+  type text not null, -- MCQ, Fill in the Blanks, One Word, Full Forms, Assertion Reason, Very Short Answer, Short Answer, Medium Answer, Long Answer
   difficulty text not null, -- Easy, Medium, Hard
+  bloom_level text,
+  concept_tag text,
+  learning_outcome text,
+  estimated_time integer,
+  marks integer,
+  source text default 'ai',
   question text not null,
   options jsonb, -- ["A", "B", "C", "D"] or empty array
   answer text not null,
   explanation text,
+  topic_subtopic text,
   normalized_question text not null, -- Lowercase, punctuation stripped for caching
   created_at timestamptz not null default now()
 );
@@ -55,6 +62,8 @@ create table if not exists public.question_bank (
 create index if not exists qb_lookup_idx on public.question_bank (board, class_name, subject, chapter);
 create index if not exists qb_cache_key_idx on public.question_bank (cache_key);
 create index if not exists qb_normalized_question_idx on public.question_bank (normalized_question);
+create unique index if not exists qb_unique_normalized_question_per_chapter_idx
+  on public.question_bank (board, class_name, subject, chapter, normalized_question);
 
 -- Enable RLS for question_bank
 alter table public.question_bank enable row level security;
@@ -188,6 +197,12 @@ create table if not exists public.analytics_events (
   event_details jsonb, -- Arbitrary data
   created_at timestamptz not null default now()
 );
+
+create index if not exists analytics_events_type_idx
+  on public.analytics_events (event_type);
+
+create index if not exists analytics_events_created_at_idx
+  on public.analytics_events (created_at desc);
 
 -- Enable RLS for analytics
 alter table public.analytics_events enable row level security;

@@ -1,6 +1,4 @@
 import { create } from 'zustand';
-import { Question } from '@/services/ai';
-import { buildClientFallbackResult } from '@/data/fallbackQuestions';
 
 export interface QuestionsState {
   activeKey: string;
@@ -22,7 +20,13 @@ function canUseStorage(): boolean {
 }
 
 function isCacheableResult(result: any): boolean {
-  return result?.source !== 'starter' && Array.isArray(result?.questions) && result.questions.length >= 20;
+  const hasStarterRows = Array.isArray(result?.questions) &&
+    result.questions.some((question: any) => question?.source === 'local-fallback' || question?.source === 'starter');
+
+  return result?.source !== 'starter' &&
+    !hasStarterRows &&
+    Array.isArray(result?.questions) &&
+    result.questions.length >= 20;
 }
 
 function loadQuestionCache(): Record<string, any> {
@@ -78,46 +82,26 @@ export const useQuestionStore = create<QuestionsState>((set, get) => ({
     const key = `${payload.board}|${payload.className}|${payload.subject}|${payload.chapter}`;
     const existing = get().questionsByKey[key];
     const hasFinalResult = existing && existing.source !== 'starter';
-    let starterTimer: any;
 
-    set({ activeKey: key, error: '', source: existing?.source || '', loading: !existing });
+    set({ activeKey: key, error: '', source: hasFinalResult ? existing.source || '' : '', loading: !hasFinalResult });
 
     if (hasFinalResult) {
       return existing;
     }
 
     try {
-      starterTimer = window.setTimeout(() => {
-        const state = get();
-
-        if (state.activeKey !== key || state.questionsByKey[key]?.source !== undefined) {
-          return;
-        }
-
-        const fallback = buildClientFallbackResult(payload, 'AI is still generating. Starter questions are shown first.');
-        set((currentState) => ({
-          loading: false,
-          error: '',
-          source: fallback.source,
-          questionsByKey: {
-            ...currentState.questionsByKey,
-            [key]: fallback,
-          },
-        }));
-      }, 18000);
-
       const response = await fetch('/api/questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
+      const result = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        throw new Error(`Failed to generate: ${response.statusText}`);
+        throw new Error(result?.error || `Failed to generate: ${response.statusText || response.status}`);
       }
 
-      const result = await response.json();
-      window.clearTimeout(starterTimer);
       saveQuestionCache(key, result);
 
       set((state) => ({
@@ -130,18 +114,18 @@ export const useQuestionStore = create<QuestionsState>((set, get) => ({
       }));
       return result;
     } catch (error: any) {
-      window.clearTimeout(starterTimer);
-      const fallback = buildClientFallbackResult(payload, error.message || 'Could not fetch questions.');
+      const message = error?.message || 'Could not fetch real board-specific questions.';
       set((state) => ({
         loading: false,
-        error: '',
-        source: fallback.source,
-        questionsByKey: {
-          ...state.questionsByKey,
-          [key]: fallback,
-        },
+        error: message,
+        source: '',
+        questionsByKey: Object.fromEntries(
+          Object.entries(state.questionsByKey).filter(([entryKey, value]: any) => (
+            entryKey !== key || value?.source !== 'starter'
+          )),
+        ),
       }));
-      return fallback;
+      return null;
     }
   },
 

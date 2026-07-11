@@ -9,7 +9,8 @@ ADD COLUMN IF NOT EXISTS concept_tag text,
 ADD COLUMN IF NOT EXISTS learning_outcome text,
 ADD COLUMN IF NOT EXISTS estimated_time integer, -- in seconds
 ADD COLUMN IF NOT EXISTS marks integer,
-ADD COLUMN IF NOT EXISTS source text DEFAULT 'ai';
+ADD COLUMN IF NOT EXISTS source text DEFAULT 'ai',
+ADD COLUMN IF NOT EXISTS topic_subtopic text;
 
 -- 2. Extend the mock_tests table with student performance tracking metrics
 ALTER TABLE public.mock_tests
@@ -29,3 +30,9 @@ CREATE INDEX IF NOT EXISTS qb_difficulty_idx ON public.question_bank (difficulty
 CREATE INDEX IF NOT EXISTS qb_type_idx ON public.question_bank (type);
 CREATE INDEX IF NOT EXISTS qb_bloom_idx ON public.question_bank (bloom_level);
 CREATE INDEX IF NOT EXISTS qb_concept_idx ON public.question_bank (concept_tag);
+CREATE UNIQUE INDEX IF NOT EXISTS qb_unique_normalized_question_per_chapter_idx
+  ON public.question_bank (board, class_name, subject, chapter, normalized_question);
+
+-- 4. Visitor counter / analytics performance indexes
+CREATE INDEX IF NOT EXISTS analytics_events_type_idx ON public.analytics_events (event_type);
+CREATE INDEX IF NOT EXISTS analytics_events_created_at_idx ON public.analytics_events (created_at DESC);

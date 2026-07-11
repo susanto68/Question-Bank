@@ -1,7 +1,23 @@
 import { Question } from '@/services/ai';
 
-const fallbackTypes = ['MCQ', 'Short Answer', 'Long Answer', 'True/False', 'Assertion Reason', 'Numerical'];
+const fallbackTypes = [
+  'MCQ',
+  'Fill in the Blanks',
+  'One Word',
+  'Full Forms',
+  'Assertion Reason',
+  'Very Short Answer',
+  'Short Answer',
+  'Medium Answer',
+  'Long Answer',
+];
 const fallbackDifficulties = ['Easy', 'Medium', 'Hard'];
+const assertionReasonOptions = [
+  'Both A and R are true and R is the correct explanation.',
+  'Both A and R are true but R is not the correct explanation.',
+  'A is true but R is false.',
+  'A is false but R is true.',
+];
 
 export interface FallbackPayload {
   board: string;
@@ -43,7 +59,7 @@ export function buildClientFallbackQuestions(payload: FallbackPayload, count = 2
         concept_tag: `${payload.chapter} Core Idea`,
         learning_outcome: `Evaluate foundational understanding of ${payload.chapter}`,
         question: `Which option best describes an important concept from **${base}**?`,
-        options: ['Core concept', 'Unrelated statement', 'Guesswork only', 'No relation'],
+        options: ['Core concept', 'Applied method', 'Related example', 'Valid comparison'],
         answer: 'Core concept',
         explanation: 'Shown instantly as a starter question while live generation is unavailable.',
         marks,
@@ -51,7 +67,7 @@ export function buildClientFallbackQuestions(payload: FallbackPayload, count = 2
       };
     }
 
-    if (type === 'True/False') {
+    if (type === 'Assertion Reason') {
       return {
         id: index + 1,
         type,
@@ -59,9 +75,9 @@ export function buildClientFallbackQuestions(payload: FallbackPayload, count = 2
         bloom_level,
         concept_tag: `${payload.chapter} Fundamentals`,
         learning_outcome: `Evaluate core definitions of ${payload.chapter}`,
-        question: `True or False: Strong basics in **${payload.chapter}** help solve application-based questions.`,
-        options: ['True', 'False'],
-        answer: 'True',
+        question: `Assertion (A): Strong basics in **${payload.chapter}** help solve application-based questions.\n\nReason (R): Conceptual clarity helps connect known facts with the required answer.`,
+        options: assertionReasonOptions,
+        answer: assertionReasonOptions[0],
         explanation: 'Shown instantly as a starter question while live generation is unavailable.',
         marks,
         estimated_time

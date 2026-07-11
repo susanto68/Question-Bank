@@ -19,7 +19,11 @@ export default function QuestionList({ questions }: QuestionListProps) {
   return (
     <div className="thin-scrollbar h-full overflow-y-auto px-2 py-1.5 sm:px-4 sm:py-2 space-y-4">
       {questions.map((question, index) => (
-        <div key={question.id || index} className="w-full">
+        <div
+          key={question.id || index}
+          className="w-full"
+          style={{ contentVisibility: 'auto', containIntrinsicSize: '360px' }}
+        >
           <QuestionCard question={question} index={index} />
         </div>
       ))}

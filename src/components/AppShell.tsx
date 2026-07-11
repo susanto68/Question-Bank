@@ -5,6 +5,7 @@ import { BookOpen, GraduationCap, Home, Sparkles, Bot, Briefcase, FileText, User
 import { boards } from '@/data/catalog';
 import InstallButton from './InstallButton';
 import CommentCenter from './CommentCenter';
+import VisitorCounter from './VisitorCounter';
 
 interface SidebarButtonProps {
   board: {
@@ -129,6 +130,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <GraduationCap size={14} /> Mobile Ready
               </span>
             </div>
+            <VisitorCounter />
             <InstallButton />
             <CommentCenter />
           </div>

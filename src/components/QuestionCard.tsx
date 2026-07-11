@@ -20,11 +20,14 @@ const difficultyClasses: Record<string, string> = {
 
 const typeClasses: Record<string, string> = {
   MCQ: 'from-cyan-300 to-blue-400',
-  'Short Answer': 'from-emerald-300 to-teal-400',
-  'Long Answer': 'from-violet-300 to-fuchsia-400',
-  'True/False': 'from-amber-300 to-orange-400',
+  'Fill in the Blanks': 'from-amber-300 to-yellow-400',
+  'One Word': 'from-lime-300 to-emerald-400',
+  'Full Forms': 'from-indigo-300 to-sky-400',
   'Assertion Reason': 'from-pink-300 to-rose-400',
-  Numerical: 'from-lime-300 to-emerald-400',
+  'Very Short Answer': 'from-teal-300 to-cyan-400',
+  'Short Answer': 'from-emerald-300 to-teal-400',
+  'Medium Answer': 'from-orange-300 to-red-400',
+  'Long Answer': 'from-violet-300 to-fuchsia-400',
 };
 
 function MarkdownBlock({ children }: { children: string }) {
