@@ -103,7 +103,7 @@ const subjectGroups: Record<string, string[]> = {
   // ICSE/CBSE Classes 6-10
   schoolMiddle: ['English', 'Mathematics', 'Science', 'Social Science', 'Hindi', 'Computer Applications', 'Geography'],
   // ICSE/CBSE Class 9-10 Science stream
-  schoolSenior: ['Physics', 'Chemistry', 'Biology', 'Mathematics', 'Computer Applications', 'Economics', 'Accountancy', 'Political Science', 'History', 'Geography', 'English', 'Hindi', 'Business Studies'],
+  schoolSenior: ['Physics', 'Chemistry', 'Biology', 'Mathematics', 'Computer Applications', 'Computer Science', 'Economics', 'Accountancy', 'Political Science', 'History', 'Geography', 'English', 'Hindi', 'Business Studies'],
   // ISC / Class 11-12
   iscSenior: ['Physics', 'Chemistry', 'Biology', 'Mathematics', 'Computer Science', 'Economics', 'Accountancy', 'Political Science', 'History', 'Geography', 'English', 'Commerce', 'Psychology', 'Sociology'],
   // Civil Services

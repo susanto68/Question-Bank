@@ -187,12 +187,13 @@ export async function ensureQuestionSet(payload: QuestionPayload, options: Ensur
       const hasCorrectBoardTypes = [...cachedTypes].some(t => boardSectionTypes.has(t));
 
       if (!hasCorrectBoardTypes && dbQuestions.length > 0) {
-        console.warn(`[Cache] STALE CACHE detected for ${cacheKey}: cached types [${[...cachedTypes].join(', ')}] do not match board types [${[...boardSectionTypes].join(', ')}]. Purging.`);
+        console.warn(`[Cache] STALE CACHE detected for ${cacheKey}: cached types [${[...cachedTypes].join(', ')}] do not match board types [${[...boardSectionTypes].join(', ')}]. Purging AI-generated rows (official/source-backed questions are preserved).`);
         await supabaseAdmin.from('question_bank').delete()
           .eq('board', payload.board)
           .eq('class_name', payload.className)
           .eq('subject', payload.subject)
-          .eq('chapter', payload.chapter);
+          .eq('chapter', payload.chapter)
+          .eq('official_source', false);
       } else if (validDbQuestions.length >= Math.ceil(boardTotalCount * 0.9)) {
         const sortedQuestions = sortQuestions(validDbQuestions);
         console.log(`[Cache] HIT: Serving ${sortedQuestions.length} cached questions for ${cacheKey}`);
@@ -227,20 +228,40 @@ export async function ensureQuestionSet(payload: QuestionPayload, options: Ensur
   }
 
   if (generated.cacheable !== false && finalQuestions.length > 0) {
+    // Only clear previously-cached AI rows. Official/source-backed questions
+    // (official_source = true) are never deleted here -- they are topped up
+    // with freshly generated AI questions to reach boardTotalCount instead.
     const { error: deleteError } = await supabaseAdmin
       .from('question_bank')
       .delete()
       .eq('board', payload.board)
       .eq('class_name', payload.className)
       .eq('subject', payload.subject)
-      .eq('chapter', payload.chapter);
+      .eq('chapter', payload.chapter)
+      .eq('official_source', false);
 
     if (deleteError) {
       throw new Error(`Failed to clear incomplete question cache: ${deleteError.message}`);
     }
 
+    const { count: officialCount, error: officialCountError } = await supabaseAdmin
+      .from('question_bank')
+      .select('id', { count: 'exact', head: true })
+      .eq('board', payload.board)
+      .eq('class_name', payload.className)
+      .eq('subject', payload.subject)
+      .eq('chapter', payload.chapter)
+      .eq('official_source', true);
+
+    if (officialCountError) {
+      throw new Error(`Failed to count official questions: ${officialCountError.message}`);
+    }
+
+    const aiSlotsRemaining = Math.max(0, boardTotalCount - (officialCount || 0));
+    const aiQuestionsToInsert = finalQuestions.slice(0, aiSlotsRemaining);
+
     const questionSource = options.sourceMetadata?.sourceKind || generated.provider || 'ai';
-    const rowsToInsert = finalQuestions.map((q) => ({
+    const rowsToInsert = aiQuestionsToInsert.map((q) => ({
       cache_key: cacheKey,
       board: generated.board,
       class_name: generated.className,
@@ -261,21 +282,20 @@ export async function ensureQuestionSet(payload: QuestionPayload, options: Ensur
       normalized_question: normalizedQuestionKey(q.question),
     }));
 
-    await insertQuestionRows(rowsToInsert, options.sourceMetadata);
+    if (rowsToInsert.length > 0) {
+      await insertQuestionRows(rowsToInsert, options.sourceMetadata);
+    }
 
-    const { count, error: verifyError } = await supabaseAdmin
-      .from('question_bank')
-      .select('id', { count: 'exact', head: true })
-      .eq('board', payload.board)
-      .eq('class_name', payload.className)
-      .eq('subject', payload.subject)
-      .eq('chapter', payload.chapter);
+    const { data: mergedRows, error: verifyError } = await getStoredRows(payload);
 
     if (verifyError) {
       throw new Error(`Failed to verify Supabase insert: ${verifyError.message}`);
     }
 
-    console.log(`[Supabase] Stored ${count}/${finalQuestions.length} questions for ${payload.board} - ${payload.chapter}`);
+    const mergedQuestions = sortQuestions((mergedRows || []).map(mapDbQuestion));
+    console.log(`[Supabase] Stored ${mergedQuestions.length}/${boardTotalCount} questions for ${payload.board} - ${payload.chapter} (${officialCount || 0} official, ${rowsToInsert.length} AI-generated)`);
+
+    return buildResponse(payload, cacheKey, mergedQuestions, mergedRows?.[0]?.created_at);
   }
 
   return {

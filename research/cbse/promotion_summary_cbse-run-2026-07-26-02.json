@@ -1,0 +1,755 @@
+{
+  "run_id": "cbse-run-2026-07-26-02",
+  "post_automation_manual_review_note": "After the automated pass (19 promoted), manual spot-check of every live row found 2 further defects: a Biology 'Human Health and Disease' Case Study whose passage+sub-questions had been mislabeled as an MCQ (options were essay sub-questions, not answer choices), and a Mathematics 'Probability' item with garbled OCR text (corrupted Unicode fractions) and a mismatched type/marks. Both were removed. Final live count in question_bank for this run: 17.",
+  "stats": {
+    "total": 200,
+    "promoted": 19,
+    "rejected_structural": 92,
+    "rejected_unclassified_chapter": 24,
+    "rejected_untyped": 65,
+    "by_subject_chapter": {
+      "Science / Class 10 / Natural Resources": 2,
+      "Science / Class 10 / Control and Coordination": 2,
+      "Science / Class 10 / Life Processes": 3,
+      "Science / Class 10 / Heredity and Evolution": 2,
+      "Biology / Class 12 / Human Health and Disease": 1,
+      "Science / Class 10 / Light - Reflection and Refraction": 1,
+      "Science / Class 10 / Electricity": 1,
+      "Mathematics / Class 10 / Probability": 1,
+      "Mathematics / Class 12 / Trigonometry": 1,
+      "Biology / Class 12 / Evolution": 1,
+      "Biology / Class 12 / Molecular Basis of Inheritance": 1,
+      "Biology / Class 12 / Reproductive Health": 1,
+      "Physics / Class 12 / Atoms": 1,
+      "Physics / Class 12 / Electric Charges and Fields": 1
+    },
+    "insert_failures": 0
+  },
+  "rejections": [
+    {
+      "rawId": "a0290f83-f748-4d57-bd2a-51ef425f47e6",
+      "reason": "MCQ option empty, suspiciously long, or contains boilerplate bleed"
+    },
+    {
+      "rawId": "c7926ee1-985f-4f25-be23-af88f8a4419b",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "da5311c0-244d-4880-8560-3addb9c3f223",
+      "reason": "Answer/explanation text too short or missing"
+    },
+    {
+      "rawId": "3a551481-a97d-4ef1-a161-47ee8636e78f",
+      "reason": "MCQ has 5 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "ddabb584-d0d7-408e-9214-b6e6b6bcfa21",
+      "reason": "MCQ has 2 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "0fec6a02-79c4-4f6a-97ba-23f1a3b092cc",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "bf3ad21a-8711-4434-ba87-9f9637af5e4f",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "598fba5e-bd9a-4333-975a-55e1c08b87e3",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "0a667b8f-62f1-425a-b10a-1a34f3bc353b",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "d17ed009-852c-4727-9449-59bb93ec7dcd",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "5f04b069-8ef9-4481-8d4e-0d1dc449e311",
+      "reason": "Unsupported marks value (null) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "b4bcdffd-5454-4dcb-98fb-022e5209862d",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "58426fb9-7875-4496-b83f-fa8dedc62c6f",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "f3c4d172-6117-46ee-84af-1df7d334ad39",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "50ca2ddf-44bd-4f31-a6f7-9d172672ea2f",
+      "reason": "Unsupported marks value (null) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "d5f1005f-bed1-44b1-849d-97d1bfa2bd82",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "0ca26df8-445e-4538-a7d1-53928a248965",
+      "reason": "MCQ has 39 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "c69bff26-2b7e-48aa-b499-88f6ab31e10f",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "cf9306af-dc52-41db-8d4d-176e2212dc41",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "6447472d-f816-4e77-82fd-133ca5c6782d",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "1525e5f7-eec5-4ec2-9109-254498be019e",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "47e2db1f-5f17-4b0f-bf9b-46b2b31db6fc",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "0f3a42d9-f5ba-4e74-a8f1-013cde50610b",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "b7f07b52-2e0c-423b-8a39-b728ba95b68d",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "5e534028-5569-4cdc-9894-f26220a485ea",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "3b81d331-f55e-42a3-84d4-33d92d59f3c2",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "91a85ff2-6a5d-4799-b0bd-27e45f7a5e0e",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "9b2f8f07-bafb-425c-9b0d-b09b41f4038b",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "e0b0fc4d-4dc0-466f-8dd4-df3b725e5fae",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "14688282-e304-4017-83f0-a29fe27aefd1",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "8f83b679-0a08-432e-8bd0-97d259339841",
+      "reason": "MCQ option empty, suspiciously long, or contains boilerplate bleed"
+    },
+    {
+      "rawId": "5afa4100-2eb9-4119-a330-d3c56fc4eb30",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "82df231e-3f61-4d9c-a93d-cee846bc89b0",
+      "reason": "MCQ has 6 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "b5093a6f-95c1-4a6a-805d-7b2c7a20cd6d",
+      "reason": "Unsupported marks value (null) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "961bee28-3bfb-467d-b325-6ae0a94560a8",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "7371e680-f45f-496c-bb95-22978c22fda8",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "ab1840ec-258d-4840-88e0-6a71c7073bd1",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "b44a6120-9567-4c1e-bc2f-b1099b0b33af",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "8ab0c3b3-03e6-49da-880c-473c628c3396",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "7a667387-cd7c-4fc4-a7ea-8c3be7f87f13",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "1de37610-fda4-4b42-a1be-8fa7e232efb5",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "2feed731-5501-4c56-be77-9fcac1b28e6f",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "d2420cb1-d0f1-423a-a0ee-9942aa246ffd",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "f1245566-5e47-4248-8b8e-ae7f71d57673",
+      "reason": "MCQ option empty, suspiciously long, or contains boilerplate bleed"
+    },
+    {
+      "rawId": "8936276f-a1b6-4045-8259-d80f14a62555",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "b49173a0-bab3-4266-9278-c079bc3ff478",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "50b1919b-eb29-4760-8446-7332dd30dc00",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "30f3acc5-ba47-4124-8111-ef0c866c4dc4",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "65c55ae5-eaaa-4d45-a208-5dda02da3d62",
+      "reason": "MCQ has 8 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "d8fd4e71-2377-46dc-97ea-1864ec1d0f06",
+      "reason": "MCQ has 2 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "4eaca920-ccd1-4ca8-bee9-bd726cb55300",
+      "reason": "Unsupported marks value (null) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "6e155bbc-52c4-4df6-8022-3bfa1d1d66f5",
+      "reason": "MCQ has 2 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "e3dd5bf7-681e-48eb-8087-797b47030654",
+      "reason": "No confident chapter match for subject \"Science\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "36284e20-4835-4f69-adf4-8ffc538d75ce",
+      "reason": "MCQ option empty, suspiciously long, or contains boilerplate bleed"
+    },
+    {
+      "rawId": "a10fadab-d16f-4fd7-91cb-3aeea571d59b",
+      "reason": "MCQ has 8 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "c8e9eb3f-fee9-4ca0-af4b-95398449209f",
+      "reason": "No confident chapter match for subject \"Science\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "15c9d7fe-fb8e-43bd-8153-5ec46fdf7ee9",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "9d775882-87ca-45ba-b4db-dabff5177737",
+      "reason": "No confident chapter match for subject \"Science\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "067d8e7a-0d38-4381-b81c-b9a1c8ce815e",
+      "reason": "No confident chapter match for subject \"Science\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "201e0dd1-bea8-4adb-8aae-6a07ad4c9059",
+      "reason": "MCQ has 8 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "4cdfd9c9-bb0b-419c-8b21-2b834c6d3932",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "640c5c64-8cdf-4238-b265-5d177d680c92",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "3abcc8f3-f9e3-4d81-96e5-78524eb3a410",
+      "reason": "MCQ has 8 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "088014aa-9adc-49f9-bfad-230f9b682eba",
+      "reason": "Unsupported marks value (null) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "c78e4c1b-0afe-4d46-90dd-4884898d9adc",
+      "reason": "MCQ has 5 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "a0f29194-a83a-4b04-adce-4ca312577456",
+      "reason": "No confident chapter match for subject \"Science\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "de1fa2c3-a17c-4f9a-9987-075504b62171",
+      "reason": "Unsupported marks value (15) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "d5b4df04-af8c-44a6-b2d7-9926d2bdfd30",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "434e61f3-056e-47d4-b946-6aa5e4cc8da2",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "6f8e6032-6c1c-4e4b-a509-304b524fdb05",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "43dcf1d8-dfe8-4eab-af4c-2238f6118d9b",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "8def93df-96c1-4a11-848d-a1c7da7a4367",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "18c6350c-86ee-486e-955c-d8a57323b16d",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "cfcc7a7f-2a8d-4601-b360-5d762cf6635c",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "d212c800-713a-46af-918f-581498f7efe7",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "27d3060a-915f-4b6a-8464-4f4244358b06",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "7edc58eb-9dfe-4560-bbd7-8c8b34fa1240",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "157adb04-cc97-4ef1-9f2a-ddeced8c1c42",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "1eb0a311-c738-47be-910d-038f4932d595",
+      "reason": "No confident chapter match for subject \"Mathematics\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "b0608f3f-5df3-47eb-9191-d67f09668504",
+      "reason": "MCQ has 8 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "ac667397-caaa-48ea-9d40-da68b46771c0",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "44e4e5ad-000f-425e-8037-99d68ced44f8",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "6f247122-b3f4-4931-befb-ed9554fe428d",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "6c4315bf-1977-4924-bd58-5a93cf845df4",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "2ac1c358-72b0-49de-a8f7-51e993041212",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "8c67422b-2a9c-4cd1-90dd-2b566a3dd72e",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "56bb645d-3ce0-4c66-976c-42435bebb48d",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "1916c5be-3968-4252-b460-f19a081014ec",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "48116135-2c1c-4839-9a52-45bd9b66a4b4",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "bdd661aa-4c6e-48b2-b8f3-bb89a67264de",
+      "reason": "Unsupported marks value (null) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "c5c67131-dc3a-48aa-bdbb-dfaa8364042a",
+      "reason": "Unsupported marks value (null) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "7458e450-131e-4ce9-8d2d-24d8922168ed",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "f8b4246c-5857-4ce6-815a-55c042208a86",
+      "reason": "Unsupported marks value (null) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "7a62c920-f638-4b3a-9b61-bea3c43458ab",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "b9c88dae-0b38-455b-840c-2ebd0accc7ca",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "a1f566a7-599b-4a19-bbaf-7a1c0e67c850",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "107a436d-b197-4729-83dc-fe5e6ef59027",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "aec114ea-b1de-4a07-9dee-b3af828fb337",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "0636ac04-6c3e-49d0-994e-23755bfc8d2c",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "0ccce35a-a640-43aa-bb70-36dbfe3ae3d7",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "523e5160-896b-45ff-9706-c28bc3fdbbda",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "f6f17034-fc3b-48d5-93f9-ad79caf6a52d",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "5a791e69-642f-495b-ba3f-ea6df65cdce9",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "eb9fac44-6674-43b2-a1fb-813f00966556",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "4c3717ff-4f61-4935-a325-7224a5e6559d",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "d9cd18b4-9bf4-4d3c-aba2-8a913fa46d76",
+      "reason": "No confident chapter match for subject \"Physics\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "ee815e13-38a2-47d7-80ee-993391360642",
+      "reason": "No confident chapter match for subject \"Physics\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "f55133d2-ef7b-44b8-8fd4-6175fdfba34d",
+      "reason": "No confident chapter match for subject \"Physics\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "876d347c-b670-4372-93f3-7ed8c65eed2c",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "df2cd594-1007-4d50-a19f-527a949855e8",
+      "reason": "Unsupported marks value (null) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "56db851e-a1dd-4af2-a109-912202c549f6",
+      "reason": "Unsupported marks value (null) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "36d0742b-fc09-44e6-b5cc-146cc6bf5349",
+      "reason": "MCQ has 2 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "f6a55c67-46f2-427e-ac87-c0ef06236602",
+      "reason": "MCQ has 2 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "fc073d28-28ea-4e64-8a7e-65dbd1746d9f",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "e5c21dd5-6012-4c97-99a3-a7690c225eb6",
+      "reason": "No confident chapter match for subject \"Chemistry\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "522e2be0-665d-4fb2-8837-12a85377bc96",
+      "reason": "No confident chapter match for subject \"Chemistry\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "fba95a95-cace-491a-b60e-a37dcae6743b",
+      "reason": "MCQ has 44 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "1903a91c-a241-4178-ae00-8dd887fe187c",
+      "reason": "Unsupported marks value (null) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "6518985a-cee5-4626-82eb-0f525342e729",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "3870a1e0-9d2a-4f3e-b13f-bb2326eb1df9",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "71a44560-fab3-433f-ab16-1cab66829ec7",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "98206fef-e49a-47b7-8417-2ed64735ee01",
+      "reason": "Unsupported marks value (null) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "6435e697-64a4-43d3-a1aa-bafb9e78afaf",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "e7d786ef-8740-4047-ab52-8618573f7483",
+      "reason": "No confident chapter match for subject \"Biology\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "85a6b8df-abb2-4e95-9517-39508a53eafd",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "ebbc9f51-196a-49d7-a511-27d4e5652665",
+      "reason": "No confident chapter match for subject \"Biology\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "4f6b7edb-240f-4c6b-9faf-8e12e111ae09",
+      "reason": "MCQ option empty, suspiciously long, or contains boilerplate bleed"
+    },
+    {
+      "rawId": "f786f07c-f777-4ebb-b9b2-64b2f3c52dfd",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "2981e7c5-d6e6-4daa-a4b3-add2b7732f38",
+      "reason": "No confident chapter match for subject \"Biology\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "6e92bfbf-97fb-4d3e-b5eb-db027f13deb8",
+      "reason": "No confident chapter match for subject \"Biology\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "8a25b425-d693-441a-b886-f806f89f0838",
+      "reason": "No confident chapter match for subject \"Biology\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "088039fd-477f-4f12-be06-a69a32994aca",
+      "reason": "No confident chapter match for subject \"Biology\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "ba66573f-47f9-4825-90e0-88be42785e10",
+      "reason": "No confident chapter match for subject \"Biology\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "563f1bf8-4b1f-40f4-8de2-2ec3fb3a72c1",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "ecdcbb02-3bd6-451c-a999-be325c4b4241",
+      "reason": "MCQ answer letter not recognized"
+    },
+    {
+      "rawId": "8a22b85b-ba63-40d7-a472-48a793225eb7",
+      "reason": "No confident chapter match for subject \"Biology\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "e78e61c9-7148-47a0-beec-962704479bff",
+      "reason": "MCQ has 8 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "9e4dabcc-e118-43ea-9c4b-8540428f242b",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "7e7deecc-50b0-45df-a010-6ee5b4fc94ec",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "ef0154d8-4e85-421d-b87c-65e023fbb462",
+      "reason": "MCQ has 2 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "bcd1e93d-92cf-43a3-af4a-5fb586bedeba",
+      "reason": "No confident chapter match for subject \"Biology\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "6663d9d9-410e-4039-9dbd-7364bf19d999",
+      "reason": "Answer/explanation text too short or missing"
+    },
+    {
+      "rawId": "201d6e9b-f515-44c4-a78d-775837610295",
+      "reason": "Answer/explanation text too short or missing"
+    },
+    {
+      "rawId": "636bfe3c-aa35-4d9d-8034-c0e287ab8d47",
+      "reason": "MCQ option empty, suspiciously long, or contains boilerplate bleed"
+    },
+    {
+      "rawId": "4ccc679d-c27f-4cd1-a97d-9ed834090377",
+      "reason": "MCQ answer letter not recognized"
+    },
+    {
+      "rawId": "07eaac94-0bb8-42b8-837a-168ea881584a",
+      "reason": "MCQ has 6 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "37fd157e-e223-47db-a4da-b38df383114a",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "e82e4c02-5e6c-404c-97d8-ebc6a8a312d5",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "2b5febb3-55d1-46a8-8435-af339b2f6f70",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "f60b087b-3615-41f6-ba23-4ea0f11770b9",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "b5bea68e-5fea-4917-8c66-38221c40c415",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "478de042-7879-4898-9db6-9d590522d4c8",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "bc77e811-6afa-4837-9f04-9849e5673ae2",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "ae5b346d-26d4-4ed9-a0f4-1b32903febcd",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "c76ce56a-a1af-41a0-8a0e-18cedb7850b4",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "c265895d-2007-4e4c-8b6a-d64357ea64fe",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "4eacae8a-f901-4cac-806d-8e66bcd84384",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "009991e8-e6e5-4e6a-8955-c52a5ea3da05",
+      "reason": "Unsupported marks value (null) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "63eab318-00d1-4b43-808d-b1b4f532726d",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "ffdb7d38-2ae7-407d-b1ec-d27c9ad8cce0",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "707ea27b-986c-4116-bb65-d18ad2783ff1",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "894cd64c-97c8-4c8b-9599-5c52a74465c0",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "ec6a2d64-c9bb-45cb-995f-e056aa7b6221",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "e58eddce-a886-4f89-ac5f-f586e4b7cb8a",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "7f1b8ea5-8265-4cdc-accb-5a360f2430e6",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "7246f6e3-9518-46af-9668-860bd1a7f210",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "db6fc9db-9b1a-45d5-8809-53ef2737104f",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "4f460744-4b41-4e90-9354-439501cf5a96",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "098e81bc-dadf-4e3c-81a0-d3a59b24dfb1",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "035e6be3-110b-4bac-b44c-2f978d137c26",
+      "reason": "Unsupported marks value (1) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "548d8252-9de2-49ad-bf70-680049ee6a05",
+      "reason": "No confident chapter match for subject \"Computer Science\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "1096cc65-9f6a-4f16-bc1c-7a7921695bf0",
+      "reason": "No confident chapter match for subject \"Computer Science\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "abf006b7-49f3-4940-9a4b-71be1c386424",
+      "reason": "No confident chapter match for subject \"Computer Science\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "b641b360-65c7-472c-81b0-2677519e7294",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "9dcad914-8a67-4f7d-8748-02e69498a3f1",
+      "reason": "No confident chapter match for subject \"Computer Science\" (catalog gap or off-syllabus topic)"
+    },
+    {
+      "rawId": "cdd34ec5-2c4f-4b71-882c-61a1c53e9d95",
+      "reason": "MCQ has 2 options, expected exactly 4 (likely parser bleed)"
+    },
+    {
+      "rawId": "98c5ccc1-6602-4bc7-a3db-43b3903dde96",
+      "reason": "Unsupported marks value (4) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "aa2617e4-503c-4ec8-9cd9-78f0f3160e2a",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "7099e133-f662-4662-b9e1-32eae1a8876c",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    },
+    {
+      "rawId": "f5403c9b-96b1-470b-886f-fbc4c48eddb9",
+      "reason": "Unsupported marks value (null) for non-MCQ/non-AR row -- cannot map to a CBSE section type"
+    },
+    {
+      "rawId": "0a3a15f4-97bf-46cf-b7db-668be54dccdd",
+      "reason": "Question stem contains boilerplate/bleed marker text"
+    }
+  ],
+  "insertFailures": []
+}
