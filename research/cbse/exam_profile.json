@@ -1,0 +1,44 @@
+{
+  "exam": "CBSE",
+  "conducting_body": "Central Board of Secondary Education",
+  "official_website": "https://www.cbse.gov.in",
+  "academic_portal": "https://cbseacademic.nic.in",
+  "classes_or_phases": ["10", "12"],
+  "subjects_core": {
+    "10": ["Science", "Mathematics (Standard)", "Mathematics (Basic)", "Social Science", "English (Language & Literature)"],
+    "12": ["Physics", "Chemistry", "Mathematics", "Biology", "English Core", "Computer Science", "Informatics Practices", "Accountancy", "Business Studies", "Economics", "History", "Geography", "Political Science"]
+  },
+  "syllabus_structure": {
+    "latest_curriculum": "Curriculum 2026-27 (released 2026-04-01 for XI-XII, 2026-04-02 for IX-X)",
+    "framework_alignment": "NCF-2023 (National Curriculum Framework for School Education)",
+    "source_url": "https://cbseacademic.nic.in/curriculum_2027.html"
+  },
+  "paper_pattern": {
+    "class_10_and_12_theory_marks": 80,
+    "internal_assessment_marks": 20,
+    "total_marks": 100,
+    "duration": "3 hours 15 minutes",
+    "question_type_weightage": {
+      "mcq_objective": "20%",
+      "competency_based": "40%",
+      "short_and_long_answer": "40%"
+    },
+    "question_types": [
+      "MCQ", "Assertion-Reason", "Match the Following", "Picture/Statement-Based",
+      "Very Short Answer", "Short Answer", "Long Answer", "Case-Study Based"
+    ],
+    "note": "Weightage figures corroborated by secondary sources (vedantu.com, skoolguru.in, cbseguidanceweb.com); exact per-subject blueprint is published inside each official SQP PDF design sheet from cbseacademic.nic.in and should be treated as authoritative over the secondary summaries."
+  },
+  "difficulty_style": "Progressive Bloom's levels (remembering -> evaluating), increasing emphasis on competency/application-based and case-study questions per NCF-2023",
+  "latest_syllabus_year": "2026-27 (curriculum); 2025-26 is latest year with published Sample Question Papers as of this research run",
+  "source_urls": [
+    "https://cbseacademic.nic.in/curriculum_2027.html",
+    "https://cbseacademic.nic.in/SQP_CLASSX_2025-26.html",
+    "https://cbseacademic.nic.in/SQP_CLASSXII_2025-26.html",
+    "https://cbseacademic.nic.in/qbclass10.html",
+    "https://cbseacademic.nic.in/qbclass12.html",
+    "https://cbseacademic.nic.in/circulars.html"
+  ],
+  "official_status": "official",
+  "researched_at": "2026-07-26"
+}

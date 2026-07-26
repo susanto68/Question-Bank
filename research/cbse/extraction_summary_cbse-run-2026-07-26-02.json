@@ -1,0 +1,69 @@
+{
+  "run_id": "cbse-run-2026-07-26-02",
+  "documents_processed": 20,
+  "questions_extracted": 208,
+  "per_subject": [
+    {
+      "class": "10",
+      "subject": "Science",
+      "questions_found": 39,
+      "total_blocks": 39
+    },
+    {
+      "class": "10",
+      "subject": "Mathematics (Standard)",
+      "questions_found": 20,
+      "total_blocks": 20
+    },
+    {
+      "class": "10",
+      "subject": "Social Science",
+      "questions_found": 12,
+      "total_blocks": 12
+    },
+    {
+      "class": "10",
+      "subject": "English (Language & Literature)",
+      "questions_found": 12,
+      "total_blocks": 12
+    },
+    {
+      "class": "12",
+      "subject": "Physics",
+      "questions_found": 19,
+      "total_blocks": 19
+    },
+    {
+      "class": "12",
+      "subject": "Chemistry",
+      "questions_found": 9,
+      "total_blocks": 9
+    },
+    {
+      "class": "12",
+      "subject": "Mathematics",
+      "questions_found": 20,
+      "total_blocks": 20
+    },
+    {
+      "class": "12",
+      "subject": "Biology",
+      "questions_found": 32,
+      "total_blocks": 33
+    },
+    {
+      "class": "12",
+      "subject": "English Core",
+      "questions_found": 15,
+      "total_blocks": 15
+    },
+    {
+      "class": "12",
+      "subject": "Computer Science",
+      "questions_found": 30,
+      "total_blocks": 37
+    }
+  ],
+  "exact_duplicates_skipped": 8,
+  "raw_rows_inserted": 200
+}

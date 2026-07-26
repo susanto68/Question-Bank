@@ -1,0 +1,35 @@
+{
+  "batch": 1,
+  "exam": "CBSE",
+  "segment": "Class 10 & 12 core-subject Sample Question Papers + Marking Schemes, 2025-26 (latest published)",
+  "discovered_via": [
+    "https://cbseacademic.nic.in/SQP_CLASSX_2025-26.html",
+    "https://cbseacademic.nic.in/SQP_CLASSXII_2025-26.html"
+  ],
+  "documents": [
+    { "class": "10", "subject": "Science", "type": "sample_paper", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/Science-SQP.pdf" },
+    { "class": "10", "subject": "Science", "type": "marking_scheme", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/Science-MS.pdf" },
+    { "class": "10", "subject": "Mathematics (Standard)", "type": "sample_paper", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/MathsStandard-SQP.pdf" },
+    { "class": "10", "subject": "Mathematics (Standard)", "type": "marking_scheme", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/MathsStandard-MS.pdf" },
+    { "class": "10", "subject": "Social Science", "type": "sample_paper", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/SocialScience-SQP.pdf" },
+    { "class": "10", "subject": "Social Science", "type": "marking_scheme", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/SocialScience-MS.pdf" },
+    { "class": "10", "subject": "English (Language & Literature)", "type": "sample_paper", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/EnglishL-SQP.pdf" },
+    { "class": "10", "subject": "English (Language & Literature)", "type": "marking_scheme", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/EnglishL-MS.pdf" },
+    { "class": "12", "subject": "Physics", "type": "sample_paper", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Physics-SQP.pdf" },
+    { "class": "12", "subject": "Physics", "type": "marking_scheme", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Physics-MS.pdf" },
+    { "class": "12", "subject": "Chemistry", "type": "sample_paper", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Chemistry-SQP.pdf" },
+    { "class": "12", "subject": "Chemistry", "type": "marking_scheme", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Chemistry-MS.pdf" },
+    { "class": "12", "subject": "Mathematics", "type": "sample_paper", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Maths-SQP.pdf" },
+    { "class": "12", "subject": "Mathematics", "type": "marking_scheme", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Maths-MS.pdf" },
+    { "class": "12", "subject": "Biology", "type": "sample_paper", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Biology-SQP.pdf" },
+    { "class": "12", "subject": "Biology", "type": "marking_scheme", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Biology-MS.pdf" },
+    { "class": "12", "subject": "English Core", "type": "sample_paper", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/EnglishCore-SQP.pdf" },
+    { "class": "12", "subject": "English Core", "type": "marking_scheme", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/EnglishCore-MS.pdf" },
+    { "class": "12", "subject": "Computer Science", "type": "sample_paper", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/ComputerScience-SQP.pdf" },
+    { "class": "12", "subject": "Computer Science", "type": "marking_scheme", "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/ComputerScience-MS.pdf" }
+  ],
+  "official_source": true,
+  "source_kind": "sample_paper / marking_scheme",
+  "source_year": 2026,
+  "note": "URLs constructed from base path reported by the SQP index pages; each will be verified (existence/content-type) at fetch time and marked failed with reason if a link has moved."
+}

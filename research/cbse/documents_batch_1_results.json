@@ -1,0 +1,235 @@
+{
+  "batch": 1,
+  "exam": "CBSE",
+  "segment": "Class 10 & 12 core-subject Sample Question Papers + Marking Schemes, 2025-26 (latest published)",
+  "discovered_via": [
+    "https://cbseacademic.nic.in/SQP_CLASSX_2025-26.html",
+    "https://cbseacademic.nic.in/SQP_CLASSXII_2025-26.html"
+  ],
+  "documents": [
+    {
+      "class": "10",
+      "subject": "Science",
+      "type": "sample_paper",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/Science-SQP.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\10_Science_sample_paper_Science-SQP.pdf",
+      "checksum": "ec9f01d34a0fcf3ae0354bb811bda1ca6b8c345db80699959aa46b1c16d5b445",
+      "bytes": 960352,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "10",
+      "subject": "Science",
+      "type": "marking_scheme",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/Science-MS.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\10_Science_marking_scheme_Science-MS.pdf",
+      "checksum": "4e08939a24cff72c336adc2fa444c06924308e945b36873d31f05c7ef23b84d1",
+      "bytes": 823797,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "10",
+      "subject": "Mathematics (Standard)",
+      "type": "sample_paper",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/MathsStandard-SQP.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\10_MathematicsStandard_sample_paper_MathsStandard-SQP.pdf",
+      "checksum": "40ce8f3b05a95458230d0c0813a7f9c5c45a796fcbff4c5613709409bc61fc53",
+      "bytes": 511677,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "10",
+      "subject": "Mathematics (Standard)",
+      "type": "marking_scheme",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/MathsStandard-MS.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\10_MathematicsStandard_marking_scheme_MathsStandard-MS.pdf",
+      "checksum": "3be6329ab1aacb139e6e60bc70f65466e73ffeec75ec9a4dde707e35217059ce",
+      "bytes": 867110,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "10",
+      "subject": "Social Science",
+      "type": "sample_paper",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/SocialScience-SQP.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\10_SocialScience_sample_paper_SocialScience-SQP.pdf",
+      "checksum": "e17516d6c3745e945600a502a9f9e88f60d7598849a42e6eade81531ecd2a940",
+      "bytes": 562742,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "10",
+      "subject": "Social Science",
+      "type": "marking_scheme",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/SocialScience-MS.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\10_SocialScience_marking_scheme_SocialScience-MS.pdf",
+      "checksum": "a91445e0819099ebee78ac39888e86682938a15cff3e3bb18c993a8fdf178b62",
+      "bytes": 483335,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "10",
+      "subject": "English (Language & Literature)",
+      "type": "sample_paper",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/EnglishL-SQP.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\10_EnglishLanguageLiterature_sample_paper_EnglishL-SQP.pdf",
+      "checksum": "f2488e02c98ac585ecf2097edc9feb5686e23781e189406ace0b11b8eca25e5c",
+      "bytes": 526292,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "10",
+      "subject": "English (Language & Literature)",
+      "type": "marking_scheme",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassX_2025_26/EnglishL-MS.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\10_EnglishLanguageLiterature_marking_scheme_EnglishL-MS.pdf",
+      "checksum": "3936ca5f8abf010580b9ec438bae19f69bf5afee37244c10ebad52983894cf7f",
+      "bytes": 597427,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "12",
+      "subject": "Physics",
+      "type": "sample_paper",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Physics-SQP.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\12_Physics_sample_paper_Physics-SQP.pdf",
+      "checksum": "765c647b22665b4f33ecafcd5ebed53421ae6844fbbc534e12362e1c01c069e9",
+      "bytes": 1100176,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "12",
+      "subject": "Physics",
+      "type": "marking_scheme",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Physics-MS.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\12_Physics_marking_scheme_Physics-MS.pdf",
+      "checksum": "b7c5b759a5b5a14d091c366a78f3dd0200b2354efe41d916fdfa3a21ac22ad9d",
+      "bytes": 934507,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "12",
+      "subject": "Chemistry",
+      "type": "sample_paper",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Chemistry-SQP.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\12_Chemistry_sample_paper_Chemistry-SQP.pdf",
+      "checksum": "6ce3076301d2fcd95a7fedc40efbf08c46f840b1c4d088a303d54a13dc738478",
+      "bytes": 693168,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "12",
+      "subject": "Chemistry",
+      "type": "marking_scheme",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Chemistry-MS.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\12_Chemistry_marking_scheme_Chemistry-MS.pdf",
+      "checksum": "8fcac0e42fb6692f03a23c9c9f16969b3f803ac91d8632d51a6be0b390dec864",
+      "bytes": 864493,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "12",
+      "subject": "Mathematics",
+      "type": "sample_paper",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Maths-SQP.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\12_Mathematics_sample_paper_Maths-SQP.pdf",
+      "checksum": "50fce5e707ee9a46ab1f48be5bc48698b56106cc2b752e248f6b7a20bd34035c",
+      "bytes": 1322150,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "12",
+      "subject": "Mathematics",
+      "type": "marking_scheme",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Maths-MS.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\12_Mathematics_marking_scheme_Maths-MS.pdf",
+      "checksum": "c5e6a0e8f6bbf1ee787d43233f6869f06272896fd8e5cb722dfdb20f03bf3d83",
+      "bytes": 1181580,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "12",
+      "subject": "Biology",
+      "type": "sample_paper",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Biology-SQP.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\12_Biology_sample_paper_Biology-SQP.pdf",
+      "checksum": "df59f48bc0ba106e06b20f58e96f6bfdefea57cd4cbb7de9718b8bd42c8d89b2",
+      "bytes": 740744,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "12",
+      "subject": "Biology",
+      "type": "marking_scheme",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/Biology-MS.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\12_Biology_marking_scheme_Biology-MS.pdf",
+      "checksum": "da7feb63b88e07afb34601e407f2abe0a2cc71e4a10100290235f5d9224fda9d",
+      "bytes": 521691,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "12",
+      "subject": "English Core",
+      "type": "sample_paper",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/EnglishCore-SQP.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\12_EnglishCore_sample_paper_EnglishCore-SQP.pdf",
+      "checksum": "5073910a394c2d54d04a5dc61d6f07e927d4f13f8e8cea1e19528d1c5f7c10eb",
+      "bytes": 407976,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "12",
+      "subject": "English Core",
+      "type": "marking_scheme",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/EnglishCore-MS.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\12_EnglishCore_marking_scheme_EnglishCore-MS.pdf",
+      "checksum": "436f67450804ef96339e2c6d2346914b9f361a309e8d2e9485eb975ef9e52158",
+      "bytes": 513930,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "12",
+      "subject": "Computer Science",
+      "type": "sample_paper",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/ComputerScience-SQP.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\12_ComputerScience_sample_paper_ComputerScience-SQP.pdf",
+      "checksum": "f88512f2e8f0316a2d62f45e618e004344fec2ee9f0bc4166b47e2a171036ef6",
+      "bytes": 695875,
+      "content_type": "application/pdf"
+    },
+    {
+      "class": "12",
+      "subject": "Computer Science",
+      "type": "marking_scheme",
+      "url": "https://cbseacademic.nic.in/web_material/SQP/ClassXII_2025_26/ComputerScience-MS.pdf",
+      "status": "downloaded",
+      "local_path": "research\\cbse\\documents\\12_ComputerScience_marking_scheme_ComputerScience-MS.pdf",
+      "checksum": "278085d0a2e266bbea3a1c9946d6cac074b2b4bdf967e5318c83f20fd6a78e6c",
+      "bytes": 527378,
+      "content_type": "application/pdf"
+    }
+  ],
+  "official_source": true,
+  "source_kind": "sample_paper / marking_scheme",
+  "source_year": 2026,
+  "note": "URLs constructed from base path reported by the SQP index pages; each will be verified (existence/content-type) at fetch time and marked failed with reason if a link has moved."
+}

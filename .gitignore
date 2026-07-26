@@ -19,6 +19,10 @@
 
 # production
 /build
+/dist
+
+# research pipeline: keep metadata, skip redistributing downloaded source PDFs
+research/**/documents/
 
 # misc
 .DS_Store
