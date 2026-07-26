@@ -25,9 +25,7 @@ loadEnvLocal();
 
 const key = process.env.GROQ_API_KEY || '';
 console.log('\n🔑 GROQ_API_KEY present:', !!key);
-console.log('🔑 Key length:', key.length);
 console.log('🔑 Key starts with gsk_:', key.startsWith('gsk_'));
-console.log('🔑 Key preview:', key.slice(0, 8) + '...' + key.slice(-4));
 console.log('🔑 Has newline:', key.includes('\n') || key.includes('\r'));
 
 if (!key) {

@@ -3,7 +3,7 @@ import { runQuestionRefreshAgents } from '@/services/questionAgents';
 import { getErrorMessage, getErrorStatus } from '@/services/questionBank';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 function isAuthorized(request: NextRequest): boolean {
   const configuredSecret = process.env.QUESTION_AGENT_SECRET || process.env.CRON_SECRET;

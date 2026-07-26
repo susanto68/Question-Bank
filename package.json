@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "agent:refresh": "node scripts/question-agent.js",
-    "agent:migrate": "node scripts/apply-question-agent-migration.js"
+    "agent:migrate": "node scripts/apply-question-agent-migration.js",
+    "agent:seed-source": "node scripts/seed-source-backed-question-set.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

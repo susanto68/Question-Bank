@@ -942,10 +942,13 @@ async function generateWithLlama(payload: QuestionPayload, section: BoardSection
   const groqApiKey = (process.env.GROQ_API_KEY || '').replace(/[\r\n]/g, '').trim();
   if (!groqApiKey) return [];
 
-  const modelName = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  const modelName = payload.sourceBrief
+    ? (process.env.GROQ_AGENT_MODEL || 'llama-3.1-8b-instant')
+    : (process.env.GROQ_MODEL || 'llama-3.1-8b-instant');
   const timeoutMs = Number(process.env.GROQ_TIMEOUT_MS || 45000);
   const maxRetries = 2; // Reduced — we don't want to wait 98s multiple times
-  const maxRateWaitMs = Math.min(Math.max(Number(process.env.GROQ_MAX_RATE_WAIT_MS || 8000), 0), 30000);
+  const defaultMaxRateWaitMs = payload.sourceBrief ? 90000 : 8000;
+  const maxRateWaitMs = Math.min(Math.max(Number(process.env.GROQ_MAX_RATE_WAIT_MS || defaultMaxRateWaitMs), 0), 120000);
 
   const prompt = buildSectionPrompt(payload, section, startId);
 
@@ -984,7 +987,7 @@ async function generateWithLlama(payload: QuestionPayload, section: BoardSection
       const message = errData?.error?.message || `Groq request failed: ${response.status}`;
 
       // Handle rate limit — cap wait at 30s max (don't wait 98s)
-      if ((response.status === 429 || message.includes('Rate limit')) && retryCount < maxRetries) {
+      if ((response.status === 429 || /rate limit|rate_limit/i.test(message)) && retryCount < maxRetries) {
         const waitMatch = message.match(/(\d+\.?\d*)s/);
         const rawWait = waitMatch ? Math.ceil(parseFloat(waitMatch[1]) * 1000) + 500 : Math.pow(2, retryCount + 1) * 5000;
         if (/tokens per day|tpd/i.test(message) || rawWait > maxRateWaitMs) {
@@ -1083,7 +1086,8 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
   // ─────────────────────────────────────────────────────────────────────────
   // 1. GEMINI PRIMARY — concurrent, handles any section size, no rate limits
   // ─────────────────────────────────────────────────────────────────────────
-  if (geminiApiKey) {
+  const canUseGemini = geminiApiKey && (!payload.sourceBrief || process.env.GEMINI_AGENT_ENABLED === '1');
+  if (canUseGemini) {
     try {
       console.log(`[Gemini] PRIMARY: Generating ${boardTotalCount} ${payload.board} questions concurrently...`);
 
