@@ -23,6 +23,12 @@ export interface Question {
   marks: number;
   estimated_time: number; // in seconds
   source?: string;
+  source_url?: string;
+  source_title?: string;
+  source_years?: number[];
+  source_kind?: string;
+  source_checked_at?: string;
+  agent_run_id?: string;
 }
 
 type Difficulty = 'Easy' | 'Medium' | 'Hard';
@@ -104,6 +110,7 @@ export const QUESTION_TYPE_COUNTS = getActiveTypeCounts('cbse');
 export const QUESTION_TYPES = getActiveQuestionTypes('cbse');
 export const TOTAL_QUESTION_COUNT = getActiveTotalCount('cbse');
 export const DIFFICULTY_TARGETS = { Easy: 30, Medium: 40, Hard: 30 };
+let geminiKeyKnownInvalid = false;
 
 function clean(value: any): string {
   return String(value || '').trim();
@@ -268,7 +275,6 @@ export function deduplicateQuestions(questions: Question[]): Question[] {
   const uniqueQuestions: Question[] = [];
   const questionKeys = new Set<string>();
   const mcqOptionSets = new Set<string>();
-  const conceptTags = new Set<string>();
 
   for (const q of questions) {
     let isDuplicate = false;
@@ -291,13 +297,6 @@ export function deduplicateQuestions(questions: Question[]): Question[] {
       }
     }
 
-    if (q.concept_tag) {
-      const normalizedConcept = q.concept_tag.trim().toLowerCase();
-      if (conceptTags.has(normalizedConcept)) {
-        isDuplicate = true;
-      }
-    }
-
     if (q.type === 'MCQ') {
       const optionKeys = q.options.map(normalizeText);
       const optionSet = [...optionKeys].sort().join('|');
@@ -311,9 +310,6 @@ export function deduplicateQuestions(questions: Question[]): Question[] {
     if (!isDuplicate) {
       uniqueQuestions.push(q);
       questionKeys.add(questionKey);
-      if (q.concept_tag) {
-        conceptTags.add(q.concept_tag.trim().toLowerCase());
-      }
       if (q.type === 'MCQ') {
         mcqOptionSets.add(q.options.map(normalizeText).sort().join('|'));
       }
@@ -877,6 +873,17 @@ function buildStandardQuestionSet(payload: QuestionPayload, candidates: Question
   return validated.map((question, index) => ({ ...question, id: index + 1 }));
 }
 
+function buildHybridQuestionSet(payload: QuestionPayload, candidates: Question[], count: number): Question[] {
+  const fallbackQuestions = buildLocalFallback(
+    payload,
+    count,
+    candidates.length + 1,
+    'Hybrid top-up questions added after provider generation produced a partial validated set.',
+  ).questions;
+
+  return buildStandardQuestionSet(payload, [...candidates, ...fallbackQuestions]).slice(0, count);
+}
+
 async function runWithConcurrency<T, R>(items: T[], concurrency: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
   const results = new Array<R>(items.length);
   let nextIndex = 0;
@@ -938,6 +945,7 @@ async function generateWithLlama(payload: QuestionPayload, section: BoardSection
   const modelName = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
   const timeoutMs = Number(process.env.GROQ_TIMEOUT_MS || 45000);
   const maxRetries = 2; // Reduced — we don't want to wait 98s multiple times
+  const maxRateWaitMs = Math.min(Math.max(Number(process.env.GROQ_MAX_RATE_WAIT_MS || 8000), 0), 30000);
 
   const prompt = buildSectionPrompt(payload, section, startId);
 
@@ -979,7 +987,11 @@ async function generateWithLlama(payload: QuestionPayload, section: BoardSection
       if ((response.status === 429 || message.includes('Rate limit')) && retryCount < maxRetries) {
         const waitMatch = message.match(/(\d+\.?\d*)s/);
         const rawWait = waitMatch ? Math.ceil(parseFloat(waitMatch[1]) * 1000) + 500 : Math.pow(2, retryCount + 1) * 5000;
-        const waitMs = Math.min(rawWait, 30000); // Cap at 30 seconds
+        if (/tokens per day|tpd/i.test(message) || rawWait > maxRateWaitMs) {
+          throw new Error(message);
+        }
+
+        const waitMs = Math.min(rawWait, maxRateWaitMs);
         console.log(`[Groq Rate Limit] ${section.key}: waiting ${waitMs}ms (capped) before retry ${retryCount + 1}/${maxRetries}...`);
         await new Promise(r => setTimeout(r, waitMs));
         return generateWithLlama(payload, section, startId, retryCount + 1);
@@ -1006,6 +1018,7 @@ async function generateWithLlama(payload: QuestionPayload, section: BoardSection
 async function generateWithGemini(payload: QuestionPayload, section: BoardSectionSpec, startId: number): Promise<Question[]> {
   const geminiApiKey = process.env.GEMINI_API_KEY;
   if (!geminiApiKey) return [];
+  if (geminiKeyKnownInvalid) return [];
 
   const genAI = new GoogleGenerativeAI(geminiApiKey);
   const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
@@ -1040,6 +1053,10 @@ async function generateWithGemini(payload: QuestionPayload, section: BoardSectio
       id: startId + idx
     }));
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/api key not valid|api_key_invalid/i.test(message)) {
+      geminiKeyKnownInvalid = true;
+    }
     console.error(`Gemini generation error in section ${section.key}:`, error);
     return [];
   }
@@ -1095,6 +1112,26 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
           provider: 'gemini',
           model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
         };
+      }
+
+      if (uniqueQuestions.length >= Math.ceil(boardTotalCount * 0.6)) {
+        const finalQuestions = buildHybridQuestionSet(payload, uniqueQuestions, boardTotalCount);
+        if (finalQuestions.length >= minRealQuestionThreshold) {
+          console.warn(`[Gemini] Using hybrid top-up: ${uniqueQuestions.length}/${boardTotalCount} provider questions plus validated fallback fill.`);
+          return {
+            title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
+            board: payload.board,
+            className: payload.className,
+            subject: payload.subject,
+            chapter: payload.chapter,
+            questions: finalQuestions,
+            generatedAt: new Date().toISOString(),
+            cacheable: true,
+            resilient: true,
+            provider: 'gemini',
+            model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+          };
+        }
       }
 
       console.warn(`[Gemini] Only ${uniqueQuestions.length}/${boardTotalCount} questions. Trying Groq fallback...`);
@@ -1158,6 +1195,26 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
           provider: 'groq',
           model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
         };
+      }
+
+      if (uniqueQuestions.length >= Math.ceil(boardTotalCount * 0.6)) {
+        const finalQuestions = buildHybridQuestionSet(payload, uniqueQuestions, boardTotalCount);
+        if (finalQuestions.length >= minRealQuestionThreshold) {
+          console.warn(`[Groq] Using hybrid top-up: ${uniqueQuestions.length}/${boardTotalCount} provider questions plus validated fallback fill.`);
+          return {
+            title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
+            board: payload.board,
+            className: payload.className,
+            subject: payload.subject,
+            chapter: payload.chapter,
+            questions: finalQuestions,
+            generatedAt: new Date().toISOString(),
+            cacheable: true,
+            resilient: true,
+            provider: 'groq',
+            model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+          };
+        }
       }
     } catch (e) {
       console.warn('[Groq] SECONDARY brain failed.', e);

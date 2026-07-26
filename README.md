@@ -169,6 +169,36 @@ ADMIN_OTP_CODE=select_a_private_passcode_for_admin_login_without_sms
 
 ---
 
+## Question Refresh Agent
+
+The app uses a database-first architecture. Student pages call `/api/questions`; if Supabase already has the required Board + Class + Subject + Chapter set, the stored questions are returned immediately.
+
+Background refresh is handled by an agent pipeline:
+
+1. Planner agent selects catalog targets from `src/data/catalog.ts`.
+2. Source-discovery agent checks official board/source pages and optional web evidence for the last five years.
+3. Generation agent uses Gemini first, then Groq, with the source brief and board rules.
+4. Validation agent enforces the 100-question standard, question types, difficulty mix, Bloom coverage, and duplicate prevention.
+5. Persistence agent replaces the chapter set in Supabase only after validation.
+6. Verifier agent reads Supabase back and reports the stored count.
+
+Production automation:
+
+- Vercel Cron calls `/api/agent/refresh?limit=2&forceRegenerate=true` daily from `vercel.json`.
+- GitHub Actions can run the same refresh on a schedule or manually from `.github/workflows/question-refresh.yml`.
+- Set `QUESTION_AGENT_SECRET` or `CRON_SECRET` in Vercel, and set matching `QUESTION_AGENT_SECRET` plus `QUESTION_BANK_BASE_URL` in GitHub repository secrets.
+
+Local commands:
+
+```bash
+npm run agent:migrate
+npm run agent:refresh
+```
+
+The migration adds source metadata columns to `question_bank` so refreshed records can store source URL, source years, source kind, checked timestamp, and agent run id.
+
+---
+
 ## 📋 Production Deployment Checklist
 
 - [ ] Firebase Email/Password and Google Authentication active in Firebase Console.

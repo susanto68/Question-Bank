@@ -49,19 +49,29 @@ create table if not exists public.question_bank (
   estimated_time integer,
   marks integer,
   source text default 'ai',
+  source_url text,
+  source_title text,
+  source_years integer[],
+  source_kind text,
+  source_checked_at timestamptz,
+  agent_run_id text,
   question text not null,
   options jsonb, -- ["A", "B", "C", "D"] or empty array
   answer text not null,
   explanation text,
   topic_subtopic text,
   normalized_question text not null, -- Lowercase, punctuation stripped for caching
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 -- Indexes for performance
 create index if not exists qb_lookup_idx on public.question_bank (board, class_name, subject, chapter);
 create index if not exists qb_cache_key_idx on public.question_bank (cache_key);
 create index if not exists qb_normalized_question_idx on public.question_bank (normalized_question);
+create index if not exists qb_source_kind_idx on public.question_bank (source_kind);
+create index if not exists qb_source_checked_at_idx on public.question_bank (source_checked_at desc);
+create index if not exists qb_agent_run_id_idx on public.question_bank (agent_run_id);
 create unique index if not exists qb_unique_normalized_question_per_chapter_idx
   on public.question_bank (board, class_name, subject, chapter, normalized_question);
 

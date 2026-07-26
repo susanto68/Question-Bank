@@ -1,0 +1,69 @@
+name: Question Bank Refresh
+
+on:
+  schedule:
+    - cron: "30 20 * * *"
+  workflow_dispatch:
+    inputs:
+      board:
+        description: "Optional board name or id"
+        required: false
+      className:
+        description: "Optional class name"
+        required: false
+      subject:
+        description: "Optional subject"
+        required: false
+      chapter:
+        description: "Optional chapter"
+        required: false
+      limit:
+        description: "How many chapter sets to refresh"
+        required: false
+        default: "2"
+      forceRegenerate:
+        description: "Replace existing rows with a fresh source-backed set"
+        required: false
+        default: "true"
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Vercel refresh agent
+        env:
+          QUESTION_BANK_BASE_URL: ${{ secrets.QUESTION_BANK_BASE_URL || 'https://question-bank.vercel.app' }}
+          QUESTION_AGENT_SECRET: ${{ secrets.QUESTION_AGENT_SECRET }}
+          BOARD: ${{ inputs.board }}
+          CLASS_NAME: ${{ inputs.className }}
+          SUBJECT: ${{ inputs.subject }}
+          CHAPTER: ${{ inputs.chapter }}
+          LIMIT: ${{ inputs.limit || '2' }}
+          FORCE_REGENERATE: ${{ inputs.forceRegenerate || 'true' }}
+        run: |
+          if [ -z "$QUESTION_AGENT_SECRET" ]; then
+            echo "::error::Missing GitHub secret QUESTION_AGENT_SECRET."
+            exit 1
+          fi
+
+          node <<'NODE'
+          const payload = {
+            board: process.env.BOARD || undefined,
+            className: process.env.CLASS_NAME || undefined,
+            subject: process.env.SUBJECT || undefined,
+            chapter: process.env.CHAPTER || undefined,
+            limit: Number(process.env.LIMIT || 2),
+            forceRegenerate: process.env.FORCE_REGENERATE !== 'false',
+          };
+          for (const key of Object.keys(payload)) {
+            if (payload[key] === undefined || payload[key] === '') delete payload[key];
+          }
+          require('fs').writeFileSync('payload.json', JSON.stringify(payload));
+          NODE
+
+          curl --fail --show-error --silent \
+            --request POST \
+            --header "Authorization: Bearer ${QUESTION_AGENT_SECRET}" \
+            --header "Content-Type: application/json" \
+            --data @payload.json \
+            "${QUESTION_BANK_BASE_URL%/}/api/agent/refresh" | tee refresh-response.json

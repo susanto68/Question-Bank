@@ -1,11 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 
-const API_URL = process.env.QUESTION_AGENT_API_URL || 'http://localhost:3000/api/questions';
+const API_URL = process.env.QUESTION_AGENT_API_URL || 'http://localhost:3001/api/agent/refresh';
 const QUEUE_FILE = process.env.QUESTION_AGENT_QUEUE || path.join(__dirname, 'question-agent-queue.json');
 const DEFAULT_INTERVAL_MINUTES = Number(process.env.QUESTION_AGENT_INTERVAL_MINUTES || 60);
-const ENABLE_WEB_SEARCH = process.env.QUESTION_AGENT_ENABLE_WEB_SEARCH === '1';
-const FORCE_REFRESH = process.env.QUESTION_AGENT_FORCE_REFRESH === '1';
+const BATCH_LIMIT = Number(process.env.QUESTION_AGENT_BATCH_LIMIT || 2);
+const ENABLE_WEB_SEARCH = process.env.QUESTION_AGENT_ENABLE_WEB_SEARCH !== '0';
+const FORCE_REFRESH = process.env.QUESTION_AGENT_FORCE_REFRESH !== '0';
+const AGENT_SECRET = process.env.QUESTION_AGENT_SECRET || process.env.CRON_SECRET || '';
 
 const lastRunByKey = new Map();
 
@@ -14,6 +16,10 @@ function sleep(ms) {
 }
 
 function readQueue() {
+  if (!fs.existsSync(QUEUE_FILE)) {
+    return [];
+  }
+
   const raw = fs.readFileSync(QUEUE_FILE, 'utf8');
   const parsed = JSON.parse(raw);
 
@@ -35,70 +41,15 @@ function shouldRun(item) {
   return Date.now() - lastRun >= refreshHours * 60 * 60 * 1000;
 }
 
-function compactText(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim();
-}
-
-function flattenDuckDuckGoTopics(topics, output = []) {
-  for (const topic of topics || []) {
-    if (topic.Text) {
-      output.push(topic.Text);
-    }
-    if (Array.isArray(topic.Topics)) {
-      flattenDuckDuckGoTopics(topic.Topics, output);
-    }
-  }
-  return output;
-}
-
-async function buildSourceBrief(item) {
-  if (!ENABLE_WEB_SEARCH) {
-    return '';
+async function callRefreshAgent(payload) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (AGENT_SECRET) {
+    headers.Authorization = `Bearer ${AGENT_SECRET}`;
   }
 
-  const query = `${item.board} ${item.className} ${item.subject} ${item.chapter} current year MCQ exam questions syllabus`;
-  const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
-
-  try {
-    const response = await fetch(url, { headers: { 'User-Agent': 'AI-Question-Bank-Agent/1.0' } });
-    if (!response.ok) {
-      throw new Error(`search status ${response.status}`);
-    }
-
-    const data = await response.json();
-    const snippets = [
-      data.AbstractText,
-      ...flattenDuckDuckGoTopics(data.RelatedTopics),
-    ]
-      .map(compactText)
-      .filter(Boolean)
-      .slice(0, 8);
-
-    return snippets.join('\n').slice(0, 3000);
-  } catch (error) {
-    console.warn(`[agent] Web freshness lookup skipped for ${queueKey(item)}: ${error.message}`);
-    return '';
-  }
-}
-
-async function refreshItem(item) {
-  const key = queueKey(item);
-  const sourceBrief = await buildSourceBrief(item);
-  const payload = {
-    board: item.board,
-    className: item.className,
-    subject: item.subject,
-    chapter: item.chapter,
-    agentRefresh: true,
-    forceRegenerate: FORCE_REFRESH || item.forceRegenerate === true,
-    sourceBrief,
-  };
-
-  console.log(`[agent] Refreshing ${key}`);
-  const startedAt = Date.now();
   const response = await fetch(API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(payload),
   });
 
@@ -108,13 +59,45 @@ async function refreshItem(item) {
     throw new Error(result.error || `API returned ${response.status}`);
   }
 
-  const count = Array.isArray(result.questions) ? result.questions.length : 0;
+  return result;
+}
+
+async function refreshItem(item) {
+  const key = queueKey(item);
+  console.log(`[agent] Refreshing ${key}`);
+  const startedAt = Date.now();
+  const result = await callRefreshAgent({
+    board: item.board,
+    className: item.className,
+    subject: item.subject,
+    chapter: item.chapter,
+    limit: 1,
+    forceRegenerate: FORCE_REFRESH || item.forceRegenerate === true,
+    enableWebSearch: ENABLE_WEB_SEARCH,
+  });
+
   lastRunByKey.set(key, Date.now());
-  console.log(`[agent] Stored/verified ${count} questions for ${key} in ${Math.round((Date.now() - startedAt) / 1000)}s`);
+  const stored = result?.results?.[0]?.stored ?? 'unknown';
+  console.log(`[agent] Stored/verified ${stored} questions for ${key} in ${Math.round((Date.now() - startedAt) / 1000)}s`);
+}
+
+async function refreshRotatingBatch() {
+  console.log(`[agent] Refreshing rotating catalog batch of ${BATCH_LIMIT}`);
+  const result = await callRefreshAgent({
+    limit: BATCH_LIMIT,
+    forceRegenerate: FORCE_REFRESH,
+    enableWebSearch: ENABLE_WEB_SEARCH,
+  });
+  console.log(`[agent] Batch run ${result.agentRunId}: ${result.totalTargets} target(s) processed`);
 }
 
 async function runOnce() {
   const queue = readQueue();
+
+  if (!queue.length) {
+    await refreshRotatingBatch();
+    return;
+  }
 
   for (const item of queue) {
     if (!shouldRun(item)) {
@@ -132,10 +115,11 @@ async function runOnce() {
 }
 
 async function main() {
-  console.log(`[agent] Question refresh agent started`);
+  console.log('[agent] Question refresh agent started');
   console.log(`[agent] API: ${API_URL}`);
   console.log(`[agent] Queue: ${QUEUE_FILE}`);
-  console.log(`[agent] Web freshness lookup: ${ENABLE_WEB_SEARCH ? 'on' : 'off'}`);
+  console.log(`[agent] Web source discovery: ${ENABLE_WEB_SEARCH ? 'on' : 'off'}`);
+  console.log(`[agent] Force refresh: ${FORCE_REFRESH ? 'on' : 'off'}`);
 
   while (true) {
     await runOnce();

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "agent:refresh": "node scripts/question-agent.js",
+    "agent:migrate": "node scripts/apply-question-agent-migration.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

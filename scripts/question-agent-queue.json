@@ -6,5 +6,45 @@
     "chapter": "Physical World",
     "refreshHours": 24,
     "forceRegenerate": true
+  },
+  {
+    "board": "ISC",
+    "className": "Class 12",
+    "subject": "Physics",
+    "chapter": "Current Electricity",
+    "refreshHours": 24,
+    "forceRegenerate": true
+  },
+  {
+    "board": "CBSE",
+    "className": "Class 10",
+    "subject": "Science",
+    "chapter": "Electricity",
+    "refreshHours": 24,
+    "forceRegenerate": true
+  },
+  {
+    "board": "CBSE",
+    "className": "Class 12",
+    "subject": "Physics",
+    "chapter": "Ray Optics",
+    "refreshHours": 24,
+    "forceRegenerate": true
+  },
+  {
+    "board": "CBSE",
+    "className": "Class 12",
+    "subject": "Chemistry",
+    "chapter": "Electrochemistry",
+    "refreshHours": 24,
+    "forceRegenerate": true
+  },
+  {
+    "board": "CBSE",
+    "className": "Class 12",
+    "subject": "Biology",
+    "chapter": "Human Reproduction",
+    "refreshHours": 24,
+    "forceRegenerate": true
   }
 ]
