@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import supabaseAdmin from '@/lib/supabase/admin';
 import {
   Question,
+  buildLocalFallback,
   buildCacheKey,
   generateQuestions,
   normalizePayload,
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
     const payload = normalizePayload(body);
     const cacheKey = buildCacheKey(payload);
     const forceRegenerate = body.forceRegenerate === true;
+    const isAgentRefresh = body.agentRefresh === true;
 
     // 1. DATABASE-FIRST LOOKUP (if not forced to regenerate)
     if (!forceRegenerate) {
@@ -88,6 +90,24 @@ export async function POST(request: Request) {
       const boardTotalCount = getActiveTotalCount(payload.board);
 
       if (!dbError && dbQuestions?.length) {
+        if (dbQuestions.length >= boardTotalCount) {
+          const sortedQuestions = sortQuestions((dbQuestions as QuestionBankRow[]).map(mapDbQuestion));
+
+          console.log(`[Cache] HIT: Serving ${sortedQuestions.length} cached questions for ${cacheKey}`);
+
+          return NextResponse.json({
+            source: 'supabase',
+            cacheKey,
+            title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
+            board: payload.board,
+            className: payload.className,
+            subject: payload.subject,
+            chapter: payload.chapter,
+            questions: sortedQuestions,
+            generatedAt: dbQuestions[0]?.created_at || new Date().toISOString(),
+          });
+        }
+
         const validDbQuestions = validateQuestionSet((dbQuestions as QuestionBankRow[]).map(mapDbQuestion), payload);
         const boardSectionTypes = getActiveBoardTypes(payload.board);
 
@@ -127,8 +147,10 @@ export async function POST(request: Request) {
     }
 
     // 2. AI SECOND (Cache Miss or Forced)
-    const generated = await generateQuestions(payload);
     const boardTotalForValidation = getActiveTotalCount(payload.board);
+    const generated = forceRegenerate || isAgentRefresh
+      ? await generateQuestions(payload)
+      : buildLocalFallback(payload, boardTotalForValidation, 1, 'Instant starter set created while the refresh agent prepares newer questions.');
     const finalQuestions = validateQuestionSet(generated.questions, payload);
 
     if (finalQuestions.length < Math.ceil(boardTotalForValidation * 0.9)) {
@@ -161,7 +183,6 @@ export async function POST(request: Request) {
         difficulty: q.difficulty,
         bloom_level: q.bloom_level,
         concept_tag: q.concept_tag,
-        topic_subtopic: q.concept_tag,
         learning_outcome: q.learning_outcome,
         estimated_time: q.estimated_time,
         marks: q.marks,

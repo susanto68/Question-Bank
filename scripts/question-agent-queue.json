@@ -1,0 +1,10 @@
+[
+  {
+    "board": "ICSE",
+    "className": "Class 12",
+    "subject": "Physics",
+    "chapter": "Physical World",
+    "refreshHours": 24,
+    "forceRegenerate": true
+  }
+]

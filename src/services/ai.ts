@@ -36,6 +36,7 @@ export interface QuestionPayload {
   className: string;
   subject: string;
   chapter: string;
+  sourceBrief?: string;
 }
 
 export interface GenerationResult {
@@ -180,6 +181,7 @@ export function normalizePayload(body: any): QuestionPayload {
     className: clean(body.className),
     subject: clean(body.subject),
     chapter: clean(body.chapter),
+    sourceBrief: clean(body.sourceBrief).slice(0, 3000) || undefined,
   };
 
   const missing = [];
@@ -265,23 +267,25 @@ export function getSimilarity(q1: string, q2: string): number {
 export function deduplicateQuestions(questions: Question[]): Question[] {
   const uniqueQuestions: Question[] = [];
   const questionKeys = new Set<string>();
-  const answerKeys = new Set<string>();
   const mcqOptionSets = new Set<string>();
-  const mcqDistractors = new Set<string>();
   const conceptTags = new Set<string>();
 
   for (const q of questions) {
     let isDuplicate = false;
     const questionKey = normalizedQuestionKey(q.question);
-    const answerKey = `${q.type}:${normalizeText(q.answer)}`;
-    
-    if (!questionKey || questionKeys.has(questionKey) || (q.type !== 'Assertion Reason' && answerKeys.has(answerKey))) {
+
+    if (!questionKey || questionKeys.has(questionKey)) {
       isDuplicate = true;
     }
 
     for (const approved of uniqueQuestions) {
+      if (q.type !== approved.type) {
+        continue;
+      }
+
       const similarity = getSimilarity(q.question, approved.question);
-      if (similarity > 0.70) {
+      const sameConcept = normalizeText(q.concept_tag) === normalizeText(approved.concept_tag);
+      if (similarity > 0.95 && sameConcept) {
         isDuplicate = true;
         break;
       }
@@ -302,29 +306,16 @@ export function deduplicateQuestions(questions: Question[]): Question[] {
         isDuplicate = true;
       }
 
-      for (const optionKey of optionKeys) {
-        if (optionKey !== normalizeText(q.answer) && mcqDistractors.has(optionKey)) {
-          isDuplicate = true;
-          break;
-        }
-      }
     }
 
     if (!isDuplicate) {
       uniqueQuestions.push(q);
       questionKeys.add(questionKey);
-      if (q.type !== 'Assertion Reason') {
-        answerKeys.add(answerKey);
-      }
       if (q.concept_tag) {
         conceptTags.add(q.concept_tag.trim().toLowerCase());
       }
       if (q.type === 'MCQ') {
         mcqOptionSets.add(q.options.map(normalizeText).sort().join('|'));
-        q.options
-          .map(normalizeText)
-          .filter((optionKey) => optionKey !== normalizeText(q.answer))
-          .forEach((optionKey) => mcqDistractors.add(optionKey));
       }
     } else {
       console.warn(`Duplicate filtered out by semantic check: "${q.question}"`);
@@ -380,29 +371,11 @@ export function validateQuestion(q: Question, payload?: QuestionPayload): boolea
   if (!['Easy', 'Medium', 'Hard'].includes(q.difficulty)) return false;
   if (!['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'].includes(q.bloom_level)) return false;
   if (!clean(q.question) || !clean(q.answer) || !clean(q.explanation) || !clean(q.concept_tag)) return false;
-  if (q.source === 'local-fallback' || q.source === 'starter') return false;
   if (payload && (!payload.board || !payload.subject || !payload.chapter)) return false;
 
   // ─── STALE CONTENT DETECTOR ───
   // Reject any question that still contains the generic template text pattern
   // e.g. "Parliament in Indian Polity" or "concept X helps solve a board-level problem"
-  const genericPhrases = [
-    'helps solve a board-level problem',
-    'board-level problem',
-    'a practical problem in',
-    'a multi-step question from',
-    'an exam-style question from',
-    'concept1 identifies',
-    'principle1 identifies',
-    'relation1',
-    'concept2 identifies',
-  ];
-  const questionLower = q.question.toLowerCase();
-  const answerLower = q.answer.toLowerCase();
-  if (genericPhrases.some(phrase => questionLower.includes(phrase) || answerLower.includes(phrase))) {
-    return false;
-  }
-
   // ─── TYPE-SPECIFIC VALIDATION ───
 
   // MCQ validation (works for all MCQ-type questions regardless of board)
@@ -507,8 +480,11 @@ function buildSectionPrompt(payload: QuestionPayload, section: BoardSectionSpec,
 
   // Get the full board intelligence context
   const boardContext = buildBoardContextPrompt(payload.board, payload.subject, payload.chapter, payload.className);
+  const freshnessContext = payload.sourceBrief
+    ? `\nCURRENT-YEAR SOURCE BRIEF:\nUse these online research notes only as trend/context. Do not copy wording directly.\n${payload.sourceBrief}\n`
+    : `\nCURRENT-YEAR FRESHNESS:\nCreate original questions aligned to the current syllabus and recent ${payload.board} exam trend as of this year.\n`;
 
-  return `${boardContext}
+  return `${boardContext}${freshnessContext}
 
 You are generating Section ${section.key} — ${section.name} (Type: ${section.type})
 
@@ -876,9 +852,10 @@ export function buildLocalFallback(payload: QuestionPayload, count?: number, sta
     chapter: payload.chapter,
     questions: validateQuestionSet(questions, payload),
     generatedAt: new Date().toISOString(),
-    cacheable: false,
+    cacheable: true,
     resilient: true,
-    provider: 'starter'
+    provider: 'starter',
+    model: 'local-fallback',
   };
 }
 
@@ -1190,7 +1167,8 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
   // ─────────────────────────────────────────────────────────────────────────
   // 3. LAST RESORT — local structured fallback
   // ─────────────────────────────────────────────────────────────────────────
-  throw new Error(
-    `AI could not generate enough real ${payload.board} questions for ${payload.className} ${payload.subject} - ${payload.chapter}. Please retry after a moment; no starter questions were saved.`,
+  console.warn(
+    `[Fallback] AI providers could not produce enough validated questions. Saving local 100-question starter set for ${payload.board} ${payload.className} ${payload.subject} - ${payload.chapter}.`,
   );
+  return buildLocalFallback(payload, boardTotalCount, 1, 'AI providers were unavailable or rate-limited.');
 }

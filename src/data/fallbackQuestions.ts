@@ -1,4 +1,4 @@
-import { Question } from '@/services/ai';
+import type { Question } from '@/services/ai';
 
 const fallbackTypes = [
   'MCQ',

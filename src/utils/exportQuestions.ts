@@ -1,4 +1,4 @@
-import { GenerationResult } from '@/services/ai';
+import type { GenerationResult } from '@/services/ai';
 
 export function questionsToText(result: GenerationResult): string {
   if (!result?.questions?.length) {

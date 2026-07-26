@@ -1,6 +1,6 @@
 'use client';
 
-import { Question } from '@/services/ai';
+import type { Question } from '@/services/ai';
 import QuestionCard from './QuestionCard';
 
 interface QuestionListProps {
