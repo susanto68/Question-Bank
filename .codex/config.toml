@@ -1,0 +1,14 @@
+[mcp_servers.vercel]
+url = "https://mcp.vercel.com"
+enabled = true
+tool_timeout_sec = 120
+
+[mcp_servers.supabase]
+url = "https://mcp.supabase.com/mcp?project_ref=yswbsnpltlqmpuxryewv&features=docs,database,debugging,development,functions"
+enabled = true
+tool_timeout_sec = 120
+
+[mcp_servers.github]
+url = "https://api.githubcopilot.com/mcp/"
+enabled = true
+tool_timeout_sec = 120

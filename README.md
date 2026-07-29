@@ -141,8 +141,8 @@ SUPABASE_COMMENTS_TABLE=comments
 
 # AI API Configurations
 GEMINI_API_KEY=your_google_gemini_api_key
-GEMINI_MODEL=gemini-2.0-flash
-GEMINI_FALLBACK_MODELS=gemini-2.0-flash,gemini-2.5-flash,gemini-1.5-flash-latest
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_FALLBACK_MODELS=gemini-2.5-flash-lite
 GEMINI_BATCH_SIZE=20
 GEMINI_BATCH_CONCURRENCY=2
 GEMINI_BATCH_TIMEOUT_MS=35000

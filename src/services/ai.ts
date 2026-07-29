@@ -112,6 +112,9 @@ export const TOTAL_QUESTION_COUNT = getActiveTotalCount('cbse');
 export const DIFFICULTY_TARGETS = { Easy: 30, Medium: 40, Hard: 30 };
 let geminiKeyKnownInvalid = false;
 
+const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+const DEFAULT_GEMINI_FALLBACK_MODELS = ['gemini-2.5-flash-lite'];
+
 function clean(value: any): string {
   return String(value || '').trim();
 }
@@ -905,14 +908,19 @@ async function runWithConcurrency<T, R>(items: T[], concurrency: number, worker:
 }
 
 /** Maximum questions to request per single LLM call (prevents token limit hits) */
-const MAX_QUESTIONS_PER_CALL = 8;
+const DEFAULT_MAX_QUESTIONS_PER_CALL = 8;
+
+function getMaxQuestionsPerCall(payload: QuestionPayload): number {
+  const configured = Number(payload.sourceBrief ? process.env.GROQ_AGENT_MAX_QUESTIONS_PER_CALL : process.env.GROQ_MAX_QUESTIONS_PER_CALL);
+  return Math.min(Math.max(Number.isFinite(configured) ? configured : DEFAULT_MAX_QUESTIONS_PER_CALL, 1), 8);
+}
 
 /**
  * Split a section into chunks of MAX_QUESTIONS_PER_CALL each.
  * Returns an array of mini-sections with adjusted counts and difficulty profiles.
  */
-function chunkSection(section: BoardSectionSpec, globalStartId: number): Array<{ mini: BoardSectionSpec; startId: number }> {
-  if (section.count <= MAX_QUESTIONS_PER_CALL) {
+function chunkSection(section: BoardSectionSpec, globalStartId: number, maxQuestionsPerCall = DEFAULT_MAX_QUESTIONS_PER_CALL): Array<{ mini: BoardSectionSpec; startId: number }> {
+  if (section.count <= maxQuestionsPerCall) {
     return [{ mini: section, startId: globalStartId }];
   }
 
@@ -920,12 +928,12 @@ function chunkSection(section: BoardSectionSpec, globalStartId: number): Array<{
   let offset = 0;
 
   while (offset < section.count) {
-    const chunkSize = Math.min(MAX_QUESTIONS_PER_CALL, section.count - offset);
+    const chunkSize = Math.min(maxQuestionsPerCall, section.count - offset);
     const mini: BoardSectionSpec = {
       ...section,
       count: chunkSize,
       difficultyProfile: section.difficultyProfile.slice(offset, offset + chunkSize),
-      key: `${section.key} (${Math.floor(offset / MAX_QUESTIONS_PER_CALL) + 1})`,
+      key: `${section.key} (${Math.floor(offset / maxQuestionsPerCall) + 1})`,
     };
     chunks.push({ mini, startId: globalStartId + offset });
     offset += chunkSize;
@@ -943,7 +951,7 @@ async function generateWithLlama(payload: QuestionPayload, section: BoardSection
   if (!groqApiKey) return [];
 
   const modelName = payload.sourceBrief
-    ? (process.env.GROQ_AGENT_MODEL || 'llama-3.1-8b-instant')
+    ? (process.env.GROQ_AGENT_MODEL || process.env.GROQ_MODEL || 'llama-3.3-70b-versatile')
     : (process.env.GROQ_MODEL || 'llama-3.1-8b-instant');
   const timeoutMs = Number(process.env.GROQ_TIMEOUT_MS || 45000);
   const maxRetries = 2; // Reduced — we don't want to wait 98s multiple times
@@ -1024,20 +1032,27 @@ async function generateWithGemini(payload: QuestionPayload, section: BoardSectio
   if (geminiKeyKnownInvalid) return [];
 
   const genAI = new GoogleGenerativeAI(geminiApiKey);
-  const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+  const modelNames = [
+    process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
+    ...(process.env.GEMINI_FALLBACK_MODELS || DEFAULT_GEMINI_FALLBACK_MODELS.join(','))
+      .split(',')
+      .map((model) => model.trim())
+      .filter(Boolean),
+  ].filter((model, index, models) => models.indexOf(model) === index);
   const timeoutMs = Math.min(Math.max(Number(process.env.GEMINI_BATCH_TIMEOUT_MS || 35000), 15000), 90000);
-
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    generationConfig: {
-      responseMimeType: 'application/json',
-      temperature: 0.5,
-    },
-  });
 
   const sectionPrompt = buildSectionPrompt(payload, section, startId);
 
-  try {
+  for (const modelName of modelNames) {
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.5,
+      },
+    });
+
+    try {
     const result = await Promise.race([
       model.generateContent(sectionPrompt),
       new Promise<any>((_, reject) => {
@@ -1055,14 +1070,22 @@ async function generateWithGemini(payload: QuestionPayload, section: BoardSectio
       ...q,
       id: startId + idx
     }));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/api key not valid|api_key_invalid/i.test(message)) {
-      geminiKeyKnownInvalid = true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/api key not valid|api_key_invalid/i.test(message)) {
+        geminiKeyKnownInvalid = true;
+        console.error(`Gemini generation error in section ${section.key}:`, error);
+        return [];
+      }
+
+      console.error(`Gemini generation error in section ${section.key} with ${modelName}:`, error);
+      if (!/not found|not available|deprecated|shutdown|shut down|404/i.test(message)) {
+        return [];
+      }
     }
-    console.error(`Gemini generation error in section ${section.key}:`, error);
-    return [];
   }
+
+  return [];
 }
 
 /**
@@ -1072,7 +1095,10 @@ async function generateWithGemini(payload: QuestionPayload, section: BoardSectio
 export async function generateQuestions(payload: QuestionPayload): Promise<GenerationResult> {
   const groqApiKey = process.env.GROQ_API_KEY;
   const geminiApiKey = process.env.GEMINI_API_KEY;
-  const concurrency = Math.min(Math.max(Number(process.env.GEMINI_BATCH_CONCURRENCY || 4), 1), 6);
+  const defaultConcurrency = payload.sourceBrief
+    ? Number(process.env.GEMINI_AGENT_BATCH_CONCURRENCY || 1)
+    : Number(process.env.GEMINI_BATCH_CONCURRENCY || 4);
+  const concurrency = Math.min(Math.max(defaultConcurrency, 1), 6);
 
   // Get board-specific sections
   const boardSections = getEffectiveSections(payload.board);
@@ -1086,7 +1112,7 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
   // ─────────────────────────────────────────────────────────────────────────
   // 1. GEMINI PRIMARY — concurrent, handles any section size, no rate limits
   // ─────────────────────────────────────────────────────────────────────────
-  const canUseGemini = geminiApiKey && (!payload.sourceBrief || process.env.GEMINI_AGENT_ENABLED === '1');
+  const canUseGemini = geminiApiKey && (!payload.sourceBrief || process.env.GEMINI_AGENT_ENABLED !== '0');
   if (canUseGemini) {
     try {
       console.log(`[Gemini] PRIMARY: Generating ${boardTotalCount} ${payload.board} questions concurrently...`);
@@ -1114,7 +1140,7 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
           cacheable: true,
           resilient: uniqueQuestions.length < boardTotalCount,
           provider: 'gemini',
-          model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+          model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
         };
       }
 
@@ -1133,9 +1159,26 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
             cacheable: true,
             resilient: true,
             provider: 'gemini',
-            model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+            model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
           };
         }
+      }
+
+      if (payload.sourceBrief && uniqueQuestions.length > 0) {
+        console.warn(`[Gemini] Agent saving partial source-backed set: ${uniqueQuestions.length}/${boardTotalCount} validated questions.`);
+        return {
+          title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
+          board: payload.board,
+          className: payload.className,
+          subject: payload.subject,
+          chapter: payload.chapter,
+          questions: buildStandardQuestionSet(payload, uniqueQuestions),
+          generatedAt: new Date().toISOString(),
+          cacheable: true,
+          resilient: true,
+          provider: 'gemini',
+          model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
+        };
       }
 
       console.warn(`[Gemini] Only ${uniqueQuestions.length}/${boardTotalCount} questions. Trying Groq fallback...`);
@@ -1152,13 +1195,18 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
     try {
       console.log(`[Groq] SECONDARY: Generating chunked questions for ${payload.board}...`);
       const allChunks: Array<{ mini: BoardSectionSpec; startId: number }> = [];
+      const maxQuestionsPerCall = getMaxQuestionsPerCall(payload);
+      const interChunkDelayMs = Math.min(
+        Math.max(Number(payload.sourceBrief ? process.env.GROQ_AGENT_CHUNK_DELAY_MS || 6500 : process.env.GROQ_CHUNK_DELAY_MS || 800), 0),
+        120000,
+      );
 
       for (const section of boardSections) {
         const startId = sectionStartIds.get(section.key) || 1;
-        allChunks.push(...chunkSection(section, startId));
+        allChunks.push(...chunkSection(section, startId, maxQuestionsPerCall));
       }
 
-      console.log(`[Groq] ${allChunks.length} chunks to process (max ${MAX_QUESTIONS_PER_CALL}q each)`);
+      console.log(`[Groq] ${allChunks.length} chunks to process (max ${maxQuestionsPerCall}q each, ${interChunkDelayMs}ms delay)`);
 
       const groqResults: Question[][] = [];
       let groqSuccessChunks = 0;
@@ -1171,7 +1219,7 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
           if (chunkQs.length > 0) groqSuccessChunks++;
           // Short inter-chunk pause to avoid TPM spikes
           if (cIdx < allChunks.length - 1) {
-            await new Promise(r => setTimeout(r, 800));
+            await new Promise(r => setTimeout(r, interChunkDelayMs));
           }
         } catch (chunkErr: any) {
           console.error(`[Groq] Chunk ${mini.key} failed:`, chunkErr.message);
@@ -1198,6 +1246,23 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
           resilient: uniqueQuestions.length < boardTotalCount,
           provider: 'groq',
           model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+        };
+      }
+
+      if (payload.sourceBrief && uniqueQuestions.length > 0) {
+        console.warn(`[Groq] Agent saving partial source-backed set: ${uniqueQuestions.length}/${boardTotalCount} validated questions.`);
+        return {
+          title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
+          board: payload.board,
+          className: payload.className,
+          subject: payload.subject,
+          chapter: payload.chapter,
+          questions: buildStandardQuestionSet(payload, uniqueQuestions),
+          generatedAt: new Date().toISOString(),
+          cacheable: true,
+          resilient: true,
+          provider: 'groq',
+          model: process.env.GROQ_AGENT_MODEL || process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
         };
       }
 
