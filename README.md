@@ -186,7 +186,7 @@ Production automation:
 
 - Vercel Cron calls `/api/agent/refresh?limit=3&forceRegenerate=true&enableWebSearch=true` daily from `vercel.json`.
 - GitHub Actions runs the same refresh hourly or manually from `.github/workflows/question-refresh.yml`.
-- Set `QUESTION_AGENT_SECRET` or `CRON_SECRET` in Vercel, and set matching `QUESTION_AGENT_SECRET` plus `QUESTION_BANK_BASE_URL` in GitHub repository secrets.
+- Set `QUESTION_AGENT_SECRET` or `CRON_SECRET` in Vercel, and set matching `QUESTION_AGENT_SECRET` or `CRON_SECRET` plus optional `QUESTION_BANK_BASE_URL` in GitHub repository secrets.
 
 Local commands:
 

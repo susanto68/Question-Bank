@@ -50,6 +50,8 @@ CRON_SECRET=<random-private-string-at-least-16-characters>
 
 Vercel automatically sends `CRON_SECRET` as an `Authorization: Bearer ...` header when invoking cron jobs. The route checks that header before running in production.
 
+For GitHub Actions hourly refreshes, add the same value as either `QUESTION_AGENT_SECRET` or `CRON_SECRET` in GitHub repository secrets.
+
 ## How To Check It
 
 After deployment:

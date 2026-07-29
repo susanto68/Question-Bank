@@ -33,7 +33,7 @@ jobs:
       - name: Call Vercel refresh agent
         env:
           QUESTION_BANK_BASE_URL: ${{ secrets.QUESTION_BANK_BASE_URL || 'https://question-bank.vercel.app' }}
-          QUESTION_AGENT_SECRET: ${{ secrets.QUESTION_AGENT_SECRET }}
+          QUESTION_AGENT_SECRET: ${{ secrets.QUESTION_AGENT_SECRET || secrets.CRON_SECRET }}
           BOARD: ${{ inputs.board }}
           CLASS_NAME: ${{ inputs.className }}
           SUBJECT: ${{ inputs.subject }}
