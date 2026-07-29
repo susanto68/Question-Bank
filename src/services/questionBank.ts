@@ -101,6 +101,23 @@ function isMissingColumnError(error: { code?: string; message?: string; details?
     text.includes('column') && text.includes('does not exist');
 }
 
+function isDuplicateQuestionError(error: { code?: string; message?: string; details?: string } | null): boolean {
+  const text = `${error?.code || ''} ${error?.message || ''} ${error?.details || ''}`.toLowerCase();
+  return text.includes('23505') || text.includes('duplicate key');
+}
+
+async function insertRowsIgnoringDuplicates(rows: Record<string, unknown>[]) {
+  for (const row of rows) {
+    const { error } = await supabaseAdmin
+      .from('question_bank')
+      .insert(row);
+
+    if (error && !isDuplicateQuestionError(error)) {
+      throw error;
+    }
+  }
+}
+
 function buildResponse(payload: QuestionPayload, cacheKey: string, questions: Question[], generatedAt?: string | null) {
   return {
     source: 'supabase',
@@ -113,6 +130,14 @@ function buildResponse(payload: QuestionPayload, cacheKey: string, questions: Qu
     questions,
     generatedAt: generatedAt || new Date().toISOString(),
   };
+}
+
+function isSourceBackedQuestion(question: Question): boolean {
+  return Boolean(question.source_url || question.source_title || question.source_kind || (
+    question.source &&
+    question.source !== 'local-fallback' &&
+    question.source !== 'starter'
+  ));
 }
 
 async function getStoredRows(payload: QuestionPayload) {
@@ -146,6 +171,11 @@ async function insertQuestionRows(rowsToInsert: Record<string, unknown>[], metad
     return;
   }
 
+  if (isDuplicateQuestionError(enrichedError)) {
+    await insertRowsIgnoringDuplicates(enrichedRows);
+    return;
+  }
+
   if (!isMissingColumnError(enrichedError)) {
     throw new Error(`Failed to store generated questions to Supabase: ${enrichedError.message}`);
   }
@@ -154,6 +184,11 @@ async function insertQuestionRows(rowsToInsert: Record<string, unknown>[], metad
   const { error: baseError } = await supabaseAdmin
     .from('question_bank')
     .insert(rowsToInsert);
+
+  if (baseError && isDuplicateQuestionError(baseError)) {
+    await insertRowsIgnoringDuplicates(rowsToInsert);
+    return;
+  }
 
   if (baseError) {
     throw new Error(`Failed to store generated questions to Supabase: ${baseError.message}`);
@@ -175,13 +210,16 @@ export async function ensureQuestionSet(payload: QuestionPayload, options: Ensur
     }
 
     if (!dbError && dbQuestions?.length) {
+      const mappedDbQuestions = (dbQuestions as QuestionBankRow[]).map(mapDbQuestion);
+      const sortedDbQuestions = sortQuestions(mappedDbQuestions);
+      const sourceBackedQuestions = sortedDbQuestions.filter(isSourceBackedQuestion);
+
       if (dbQuestions.length >= boardTotalCount) {
-        const sortedQuestions = sortQuestions((dbQuestions as QuestionBankRow[]).map(mapDbQuestion));
-        console.log(`[Cache] HIT: Serving ${sortedQuestions.length} cached questions for ${cacheKey}`);
-        return buildResponse(payload, cacheKey, sortedQuestions, dbQuestions[0]?.created_at);
+        console.log(`[Cache] HIT: Serving ${sortedDbQuestions.length} cached questions for ${cacheKey}`);
+        return buildResponse(payload, cacheKey, sortedDbQuestions, dbQuestions[0]?.created_at);
       }
 
-      const validDbQuestions = validateQuestionSet((dbQuestions as QuestionBankRow[]).map(mapDbQuestion), payload);
+      const validDbQuestions = validateQuestionSet(mappedDbQuestions, payload);
       const boardSectionTypes = getActiveBoardTypes(payload.board);
       const cachedTypes = new Set((dbQuestions as QuestionBankRow[]).map(q => q.type || ''));
       const hasCorrectBoardTypes = [...cachedTypes].some(t => boardSectionTypes.has(t));
@@ -194,6 +232,14 @@ export async function ensureQuestionSet(payload: QuestionPayload, options: Ensur
           .eq('subject', payload.subject)
           .eq('chapter', payload.chapter)
           .eq('official_source', false);
+      } else if (allowStarterOnMiss && sourceBackedQuestions.length > 0) {
+        console.log(`[Cache] PARTIAL SOURCE HIT: Serving ${sourceBackedQuestions.length}/${boardTotalCount} source-backed questions for ${cacheKey}`);
+        return {
+          ...buildResponse(payload, cacheKey, sourceBackedQuestions, dbQuestions[0]?.created_at),
+          source: 'supabase-partial',
+          partial: true,
+          expected: boardTotalCount,
+        };
       } else if (validDbQuestions.length >= Math.ceil(boardTotalCount * 0.9)) {
         const sortedQuestions = sortQuestions(validDbQuestions);
         console.log(`[Cache] HIT: Serving ${sortedQuestions.length} cached questions for ${cacheKey}`);
@@ -211,12 +257,14 @@ export async function ensureQuestionSet(payload: QuestionPayload, options: Ensur
       : await generateQuestions(payload);
 
   const finalQuestions = validateQuestionSet(generated.questions, payload);
+  const isLocalFallback = generated.model === 'local-fallback';
+  const isPartialAgentSave = isAgentRefresh && !isLocalFallback && finalQuestions.length > 0;
 
-  if (finalQuestions.length < Math.ceil(boardTotalCount * 0.9)) {
+  if (!isPartialAgentSave && finalQuestions.length < Math.ceil(boardTotalCount * 0.9)) {
     throw new Error(`Generated question set failed validation: ${finalQuestions.length}/${boardTotalCount} valid questions (need at least 90%).`);
   }
 
-  if (generated.model === 'local-fallback' && options.saveStarterFallback === false) {
+  if (isLocalFallback && options.saveStarterFallback === false) {
     console.warn(`[Supabase] Agent skipped saving local fallback questions for ${payload.board} - ${payload.chapter}.`);
     return {
       source: 'starter',
@@ -228,20 +276,22 @@ export async function ensureQuestionSet(payload: QuestionPayload, options: Ensur
   }
 
   if (generated.cacheable !== false && finalQuestions.length > 0) {
-    // Only clear previously-cached AI rows. Official/source-backed questions
-    // (official_source = true) are never deleted here -- they are topped up
-    // with freshly generated AI questions to reach boardTotalCount instead.
-    const { error: deleteError } = await supabaseAdmin
-      .from('question_bank')
-      .delete()
-      .eq('board', payload.board)
-      .eq('class_name', payload.className)
-      .eq('subject', payload.subject)
-      .eq('chapter', payload.chapter)
-      .eq('official_source', false);
+    if (!isPartialAgentSave) {
+      // Only clear previously-cached AI rows. Official/source-backed questions
+      // (official_source = true) are never deleted here -- they are topped up
+      // with freshly generated AI questions to reach boardTotalCount instead.
+      const { error: deleteError } = await supabaseAdmin
+        .from('question_bank')
+        .delete()
+        .eq('board', payload.board)
+        .eq('class_name', payload.className)
+        .eq('subject', payload.subject)
+        .eq('chapter', payload.chapter)
+        .eq('official_source', false);
 
-    if (deleteError) {
-      throw new Error(`Failed to clear incomplete question cache: ${deleteError.message}`);
+      if (deleteError) {
+        throw new Error(`Failed to clear incomplete question cache: ${deleteError.message}`);
+      }
     }
 
     const { count: officialCount, error: officialCountError } = await supabaseAdmin
@@ -332,6 +382,13 @@ export async function getQuestionSetStatus(payload: QuestionPayload) {
     acc[difficulty] = (acc[difficulty] || 0) + 1;
     return acc;
   }, {});
+  const newestMetadataRow = [...rows]
+    .filter(row => row.source_kind || row.source || row.source_url || row.agent_run_id)
+    .sort((a, b) => (
+      (a.source_checked_at || a.updated_at || a.created_at || '')
+        .localeCompare(b.source_checked_at || b.updated_at || b.created_at || '')
+    ))
+    .at(-1);
 
   return {
     board: payload.board,
@@ -345,10 +402,10 @@ export async function getQuestionSetStatus(payload: QuestionPayload) {
     byDifficulty,
     newestCreatedAt: rows.map(row => row.created_at).filter(Boolean).sort().at(-1) || null,
     newestUpdatedAt: rows.map(row => row.updated_at || row.created_at).filter(Boolean).sort().at(-1) || null,
-    source: rows.find(row => row.source_kind)?.source_kind || rows.find(row => row.source)?.source || null,
-    sourceUrl: rows.find(row => row.source_url)?.source_url || null,
-    sourceTitle: rows.find(row => row.source_title)?.source_title || null,
-    sourceYears: rows.find(row => row.source_years)?.source_years || null,
-    agentRunId: rows.find(row => row.agent_run_id)?.agent_run_id || null,
+    source: newestMetadataRow?.source_kind || newestMetadataRow?.source || null,
+    sourceUrl: newestMetadataRow?.source_url || null,
+    sourceTitle: newestMetadataRow?.source_title || null,
+    sourceYears: newestMetadataRow?.source_years || null,
+    agentRunId: newestMetadataRow?.agent_run_id || null,
   };
 }

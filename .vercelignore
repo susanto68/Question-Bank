@@ -1,0 +1,12 @@
+.codex
+.agents
+*.log
+*.bat
+node_modules
+.next
+.git
+.env
+.env.*
+wifi-repair.log
+mcp-login.log
+agent-dev*.log

@@ -7,6 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "vercel:whoami": "vercel whoami",
+    "vercel:deploy": "vercel deploy",
+    "vercel:logs": "vercel logs",
+    "supabase:help": "supabase --help",
+    "supabase:link": "supabase link --project-ref yswbsnpltlqmpuxryewv",
+    "supabase:status": "supabase status",
     "agent:refresh": "node scripts/question-agent.js",
     "agent:migrate": "node scripts/apply-question-agent-migration.js",
     "agent:seed-source": "node scripts/seed-source-backed-question-set.js"
@@ -43,7 +49,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "supabase": "^2.109.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vercel": "^57.0.0"
   }
 }

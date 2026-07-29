@@ -33,8 +33,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 dev-server.*.log
 dev-server.*
+local-review*.log
+agent-dev*.log
+mcp-login.log
+wifi-repair.log
 
 # env files (can opt-in for committing if needed)
 .env*
@@ -48,3 +53,13 @@ next-env.d.ts
 
 .vercel
 .env*.local
+
+# local helper scripts
+connect_agent_mcp.bat
+check_agent_mcp.bat
+connect_vercel_cli.bat
+connect_vercel_mcp_only.bat
+mcp_login_inside.bat
+vercel_cli_login_inside.bat
+vercel_mcp_login_inside.bat
+repair_jio_wifi_admin.bat

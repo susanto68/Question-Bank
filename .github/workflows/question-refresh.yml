@@ -2,7 +2,7 @@ name: Question Bank Refresh
 
 on:
   schedule:
-    - cron: "30 20 * * *"
+    - cron: "0 * * * *"
   workflow_dispatch:
     inputs:
       board:
@@ -20,7 +20,7 @@ on:
       limit:
         description: "How many chapter sets to refresh"
         required: false
-        default: "2"
+        default: "3"
       forceRegenerate:
         description: "Replace existing rows with a fresh source-backed set"
         required: false
@@ -38,7 +38,7 @@ jobs:
           CLASS_NAME: ${{ inputs.className }}
           SUBJECT: ${{ inputs.subject }}
           CHAPTER: ${{ inputs.chapter }}
-          LIMIT: ${{ inputs.limit || '2' }}
+          LIMIT: ${{ inputs.limit || '3' }}
           FORCE_REGENERATE: ${{ inputs.forceRegenerate || 'true' }}
         run: |
           if [ -z "$QUESTION_AGENT_SECRET" ]; then
@@ -52,8 +52,9 @@ jobs:
             className: process.env.CLASS_NAME || undefined,
             subject: process.env.SUBJECT || undefined,
             chapter: process.env.CHAPTER || undefined,
-            limit: Number(process.env.LIMIT || 2),
+            limit: Number(process.env.LIMIT || 3),
             forceRegenerate: process.env.FORCE_REGENERATE !== 'false',
+            enableWebSearch: true,
           };
           for (const key of Object.keys(payload)) {
             if (payload[key] === undefined || payload[key] === '') delete payload[key];
