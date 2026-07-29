@@ -41,6 +41,8 @@ jobs:
           LIMIT: ${{ inputs.limit || '3' }}
           FORCE_REGENERATE: ${{ inputs.forceRegenerate || 'true' }}
         run: |
+          set -euo pipefail
+
           if [ -z "$QUESTION_AGENT_SECRET" ]; then
             echo "::error::Missing GitHub secret QUESTION_AGENT_SECRET."
             exit 1
