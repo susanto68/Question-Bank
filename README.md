@@ -184,8 +184,8 @@ Background refresh is handled by an agent pipeline:
 
 Production automation:
 
-- Vercel Cron calls `/api/agent/refresh?limit=2&forceRegenerate=true` daily from `vercel.json`.
-- GitHub Actions can run the same refresh on a schedule or manually from `.github/workflows/question-refresh.yml`.
+- Vercel Cron calls `/api/agent/refresh?limit=3&forceRegenerate=true&enableWebSearch=true` daily from `vercel.json`.
+- GitHub Actions runs the same refresh hourly or manually from `.github/workflows/question-refresh.yml`.
 - Set `QUESTION_AGENT_SECRET` or `CRON_SECRET` in Vercel, and set matching `QUESTION_AGENT_SECRET` plus `QUESTION_BANK_BASE_URL` in GitHub repository secrets.
 
 Local commands:

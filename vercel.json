@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/agent/refresh?limit=3&forceRegenerate=true&enableWebSearch=true",
-      "schedule": "0 * * * *"
+      "schedule": "30 20 * * *"
     }
   ]
 }

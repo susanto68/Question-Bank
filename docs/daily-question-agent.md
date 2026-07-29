@@ -1,21 +1,21 @@
 # Daily Question Agent Automation
 
-This project uses a Vercel Cron job to refresh question-bank data once per hour.
+This project uses GitHub Actions for hourly refreshes and Vercel Cron as a daily production safety refresh.
 
 ## Recommended Scheduler
 
-Use Vercel Cron as the main scheduler because the app, API route, and Supabase environment variables already live in Vercel.
+Use GitHub Actions as the hourly scheduler because Vercel Hobby projects can only run cron jobs once per day. Keep Vercel Cron as a daily safety refresh because the app, API route, and Supabase environment variables already live in Vercel.
 
 Current schedule in `vercel.json`:
 
 ```json
 {
       "path": "/api/agent/refresh?limit=3&forceRegenerate=true&enableWebSearch=true",
-      "schedule": "0 * * * *"
+      "schedule": "30 20 * * *"
 }
 ```
 
-This runs once every hour and processes up to 3 rotating catalog targets per run.
+This Vercel Cron run happens once daily at 20:30 UTC, which is 2:00 AM India time. The hourly interval is handled by `.github/workflows/question-refresh.yml`.
 
 ## What It Does
 
@@ -57,7 +57,7 @@ After deployment:
 1. Open Vercel Dashboard.
 2. Go to the project.
 3. Open Settings > Cron Jobs.
-4. Confirm `/api/agent/refresh?limit=3&forceRegenerate=true&enableWebSearch=true` is active.
+4. Confirm `/api/agent/refresh?limit=3&forceRegenerate=true&enableWebSearch=true` is active as the daily Vercel safety refresh.
 5. Open Logs and filter by:
 
 ```text
@@ -83,6 +83,13 @@ http://localhost:3000/api/agent/refresh?limit=1&dryRun=true
 
 Keep `limit=3` at first. This is safer while the agent still accumulates partial source-backed sets.
 
+Hourly refreshes are configured in GitHub Actions:
+
+```yaml
+schedule:
+  - cron: "0 * * * *"
+```
+
 After logs are stable:
 
 ```text
@@ -99,11 +106,11 @@ Avoid very high hourly limits because PDF parsing, source search, and AI generat
 
 ## GitHub Actions Alternative
 
-Use GitHub Actions only as a backup/manual runner. Do not run both GitHub Actions and Vercel Cron daily unless you add a database lock, otherwise the same chapter may refresh twice.
+GitHub Actions is the hourly runner. Vercel Cron remains a daily safety refresh; keep the batch small until a database lock/job queue is added.
 
 Best setup:
 
 ```text
-Vercel Cron = hourly production refresh
-GitHub Actions = manual backup trigger
+GitHub Actions = hourly production refresh
+Vercel Cron = daily production safety refresh
 ```
