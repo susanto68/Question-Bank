@@ -950,9 +950,9 @@ async function generateWithLlama(payload: QuestionPayload, section: BoardSection
   const groqApiKey = (process.env.GROQ_API_KEY || '').replace(/[\r\n]/g, '').trim();
   if (!groqApiKey) return [];
 
-  const modelName = payload.sourceBrief
-    ? (process.env.GROQ_AGENT_MODEL || process.env.GROQ_MODEL || 'llama-3.3-70b-versatile')
-    : (process.env.GROQ_MODEL || 'llama-3.1-8b-instant');
+  const modelName = (payload.sourceBrief ? process.env.GROQ_AGENT_MODEL : undefined) ||
+    process.env.GROQ_MODEL ||
+    'llama-3.1-8b-instant';
   const timeoutMs = Number(process.env.GROQ_TIMEOUT_MS || 45000);
   const maxRetries = 2; // Reduced — we don't want to wait 98s multiple times
   const defaultMaxRateWaitMs = payload.sourceBrief ? 90000 : 8000;
@@ -1110,12 +1110,117 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
   console.log(`[BoardIntelligence] Section types: ${boardSections.map(s => s.type).join(', ')}`);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 1. GEMINI PRIMARY — concurrent, handles any section size, no rate limits
+  // 1. GROQ/LLAMA PRIMARY — chunked (≤8q per call) to avoid rate limits
+  // ─────────────────────────────────────────────────────────────────────────
+  const cleanGroqKey = (groqApiKey || '').replace(/[\r\n]/g, '').trim();
+  if (cleanGroqKey) {
+    try {
+      console.log(`[Groq] PRIMARY: Generating chunked questions for ${payload.board}...`);
+      const allChunks: Array<{ mini: BoardSectionSpec; startId: number }> = [];
+      const maxQuestionsPerCall = getMaxQuestionsPerCall(payload);
+      const interChunkDelayMs = Math.min(
+        Math.max(Number(payload.sourceBrief ? process.env.GROQ_AGENT_CHUNK_DELAY_MS || 6500 : process.env.GROQ_CHUNK_DELAY_MS || 800), 0),
+        120000,
+      );
+
+      for (const section of boardSections) {
+        const startId = sectionStartIds.get(section.key) || 1;
+        allChunks.push(...chunkSection(section, startId, maxQuestionsPerCall));
+      }
+
+      console.log(`[Groq] ${allChunks.length} chunks to process (max ${maxQuestionsPerCall}q each, ${interChunkDelayMs}ms delay)`);
+
+      const groqResults: Question[][] = [];
+      let groqSuccessChunks = 0;
+
+      for (let cIdx = 0; cIdx < allChunks.length; cIdx++) {
+        const { mini, startId } = allChunks[cIdx];
+        try {
+          const chunkQs = await generateWithLlama(payload, mini, startId);
+          groqResults.push(chunkQs);
+          if (chunkQs.length > 0) groqSuccessChunks++;
+          // Short inter-chunk pause to avoid TPM spikes
+          if (cIdx < allChunks.length - 1) {
+            await new Promise(r => setTimeout(r, interChunkDelayMs));
+          }
+        } catch (chunkErr: any) {
+          console.error(`[Groq] Chunk ${mini.key} failed:`, chunkErr.message);
+          groqResults.push([]);
+        }
+      }
+
+      const allQuestions = groqResults.flat();
+      const uniqueQuestions = validateQuestionSet(allQuestions, payload);
+
+      console.log(`[Groq] ${uniqueQuestions.length}/${boardTotalCount} valid (${groqSuccessChunks}/${allChunks.length} chunks OK)`);
+
+      if (uniqueQuestions.length >= minRealQuestionThreshold) {
+        const finalQuestions = buildStandardQuestionSet(payload, uniqueQuestions);
+        return {
+          title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
+          board: payload.board,
+          className: payload.className,
+          subject: payload.subject,
+          chapter: payload.chapter,
+          questions: finalQuestions,
+          generatedAt: new Date().toISOString(),
+          cacheable: true,
+          resilient: uniqueQuestions.length < boardTotalCount,
+          provider: 'groq',
+          model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+        };
+      }
+
+      if (payload.sourceBrief && uniqueQuestions.length > 0) {
+        console.warn(`[Groq] Agent saving partial source-backed set: ${uniqueQuestions.length}/${boardTotalCount} validated questions.`);
+        return {
+          title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
+          board: payload.board,
+          className: payload.className,
+          subject: payload.subject,
+          chapter: payload.chapter,
+          questions: buildStandardQuestionSet(payload, uniqueQuestions),
+          generatedAt: new Date().toISOString(),
+          cacheable: true,
+          resilient: true,
+          provider: 'groq',
+          model: process.env.GROQ_AGENT_MODEL || process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+        };
+      }
+
+      if (uniqueQuestions.length >= Math.ceil(boardTotalCount * 0.6)) {
+        const finalQuestions = buildHybridQuestionSet(payload, uniqueQuestions, boardTotalCount);
+        if (finalQuestions.length >= minRealQuestionThreshold) {
+          console.warn(`[Groq] Using hybrid top-up: ${uniqueQuestions.length}/${boardTotalCount} provider questions plus validated fallback fill.`);
+          return {
+            title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
+            board: payload.board,
+            className: payload.className,
+            subject: payload.subject,
+            chapter: payload.chapter,
+            questions: finalQuestions,
+            generatedAt: new Date().toISOString(),
+            cacheable: true,
+            resilient: true,
+            provider: 'groq',
+            model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+          };
+        }
+      }
+
+      console.warn(`[Groq] Only ${uniqueQuestions.length}/${boardTotalCount} questions. Trying Gemini fallback...`);
+    } catch (e) {
+      console.warn('[Groq] PRIMARY brain failed, trying Gemini fallback...', e);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 2. GEMINI SECONDARY — concurrent, handles any section size, no rate limits
   // ─────────────────────────────────────────────────────────────────────────
   const canUseGemini = geminiApiKey && (!payload.sourceBrief || process.env.GEMINI_AGENT_ENABLED !== '0');
   if (canUseGemini) {
     try {
-      console.log(`[Gemini] PRIMARY: Generating ${boardTotalCount} ${payload.board} questions concurrently...`);
+      console.log(`[Gemini] SECONDARY: Generating ${boardTotalCount} ${payload.board} questions concurrently...`);
 
       const results = await runWithConcurrency(boardSections, concurrency, async (section) => {
         const startId = sectionStartIds.get(section.key) || 1;
@@ -1180,113 +1285,8 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
           model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
         };
       }
-
-      console.warn(`[Gemini] Only ${uniqueQuestions.length}/${boardTotalCount} questions. Trying Groq fallback...`);
     } catch (e) {
-      console.warn('[Gemini] PRIMARY brain failed, trying Groq fallback...', e);
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // 2. GROQ/LLAMA SECONDARY — chunked (≤8q per call) to avoid rate limits
-  // ─────────────────────────────────────────────────────────────────────────
-  const cleanGroqKey = (groqApiKey || '').replace(/[\r\n]/g, '').trim();
-  if (cleanGroqKey) {
-    try {
-      console.log(`[Groq] SECONDARY: Generating chunked questions for ${payload.board}...`);
-      const allChunks: Array<{ mini: BoardSectionSpec; startId: number }> = [];
-      const maxQuestionsPerCall = getMaxQuestionsPerCall(payload);
-      const interChunkDelayMs = Math.min(
-        Math.max(Number(payload.sourceBrief ? process.env.GROQ_AGENT_CHUNK_DELAY_MS || 6500 : process.env.GROQ_CHUNK_DELAY_MS || 800), 0),
-        120000,
-      );
-
-      for (const section of boardSections) {
-        const startId = sectionStartIds.get(section.key) || 1;
-        allChunks.push(...chunkSection(section, startId, maxQuestionsPerCall));
-      }
-
-      console.log(`[Groq] ${allChunks.length} chunks to process (max ${maxQuestionsPerCall}q each, ${interChunkDelayMs}ms delay)`);
-
-      const groqResults: Question[][] = [];
-      let groqSuccessChunks = 0;
-
-      for (let cIdx = 0; cIdx < allChunks.length; cIdx++) {
-        const { mini, startId } = allChunks[cIdx];
-        try {
-          const chunkQs = await generateWithLlama(payload, mini, startId);
-          groqResults.push(chunkQs);
-          if (chunkQs.length > 0) groqSuccessChunks++;
-          // Short inter-chunk pause to avoid TPM spikes
-          if (cIdx < allChunks.length - 1) {
-            await new Promise(r => setTimeout(r, interChunkDelayMs));
-          }
-        } catch (chunkErr: any) {
-          console.error(`[Groq] Chunk ${mini.key} failed:`, chunkErr.message);
-          groqResults.push([]);
-        }
-      }
-
-      const allQuestions = groqResults.flat();
-      const uniqueQuestions = validateQuestionSet(allQuestions, payload);
-
-      console.log(`[Groq] ${uniqueQuestions.length}/${boardTotalCount} valid (${groqSuccessChunks}/${allChunks.length} chunks OK)`);
-
-      if (uniqueQuestions.length >= minRealQuestionThreshold) {
-        const finalQuestions = buildStandardQuestionSet(payload, uniqueQuestions);
-        return {
-          title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
-          board: payload.board,
-          className: payload.className,
-          subject: payload.subject,
-          chapter: payload.chapter,
-          questions: finalQuestions,
-          generatedAt: new Date().toISOString(),
-          cacheable: true,
-          resilient: uniqueQuestions.length < boardTotalCount,
-          provider: 'groq',
-          model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-        };
-      }
-
-      if (payload.sourceBrief && uniqueQuestions.length > 0) {
-        console.warn(`[Groq] Agent saving partial source-backed set: ${uniqueQuestions.length}/${boardTotalCount} validated questions.`);
-        return {
-          title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
-          board: payload.board,
-          className: payload.className,
-          subject: payload.subject,
-          chapter: payload.chapter,
-          questions: buildStandardQuestionSet(payload, uniqueQuestions),
-          generatedAt: new Date().toISOString(),
-          cacheable: true,
-          resilient: true,
-          provider: 'groq',
-          model: process.env.GROQ_AGENT_MODEL || process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-        };
-      }
-
-      if (uniqueQuestions.length >= Math.ceil(boardTotalCount * 0.6)) {
-        const finalQuestions = buildHybridQuestionSet(payload, uniqueQuestions, boardTotalCount);
-        if (finalQuestions.length >= minRealQuestionThreshold) {
-          console.warn(`[Groq] Using hybrid top-up: ${uniqueQuestions.length}/${boardTotalCount} provider questions plus validated fallback fill.`);
-          return {
-            title: `${payload.board} ${payload.className} ${payload.subject}: ${payload.chapter}`,
-            board: payload.board,
-            className: payload.className,
-            subject: payload.subject,
-            chapter: payload.chapter,
-            questions: finalQuestions,
-            generatedAt: new Date().toISOString(),
-            cacheable: true,
-            resilient: true,
-            provider: 'groq',
-            model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('[Groq] SECONDARY brain failed.', e);
+      console.warn('[Gemini] SECONDARY brain failed.', e);
     }
   }
 
