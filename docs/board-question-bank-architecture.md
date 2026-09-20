@@ -29,6 +29,25 @@ Two coverage facts are structural, not gaps in the pipeline:
 - ISC (CISCE Class 12) papers are published as scans with no text layer and
   require OCR, which is flagged for review rather than auto-published.
 
+## Model configuration
+
+Groq retires models, and a retired id fails with a 404 that reads like a broken
+pipeline rather than a stale setting. `llama-3.1-8b-instant` and
+`qwen/qwen3.6-27b` are both retired; as of September 2026 the working ids are
+`qwen/qwen3.8-27b`, `openai/gpt-oss-20b`, `openai/gpt-oss-120b` and
+`groq/compound-mini`.
+
+`GROQ_MODEL` and `GROQ_AGENT_MODEL` must be set to a live id in every
+environment that runs generation — local `.env.local`, and Vercel Production
+and Preview. An environment variable overrides the in-code default, so a stale
+value in Vercel breaks production even when the code default is correct.
+
+Groq also caps tokens per day per model, which is well below what a full
+classification or drafting run needs. `pyq-classify.js` and
+`pyq-draft-answers.js` therefore take an ordered list of models, retire one when
+its daily allowance is spent, and continue on the next. Both cache every result,
+so a run stopped by quota resumes the next day without repeating work.
+
 ## Data flow
 
 ```text
