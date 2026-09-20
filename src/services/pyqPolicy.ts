@@ -28,7 +28,7 @@ export const pyqModelRoles: Record<PyqModelRole, string> = {
   // free or that it can certify an official paper.
   ocr_cleanup: process.env.GROQ_OCR_MODEL || 'qwen/qwen3.8-27b',
   classification: process.env.GROQ_CLASSIFIER_MODEL || 'openai/gpt-oss-20b',
-  anomaly_review: process.env.GROQ_REVIEW_MODEL || 'qwen/qwen3.6-27b',
+  anomaly_review: process.env.GROQ_REVIEW_MODEL || 'qwen/qwen3.8-27b',
   explanation: process.env.GEMINI_EXPLANATION_MODEL || 'gemini-2.5-flash',
 };
 

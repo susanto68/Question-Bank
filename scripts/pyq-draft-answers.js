@@ -39,9 +39,19 @@ for (const f of ['.env.local', '.env']) {
 const API_KEY = process.env.GROQ_API_KEY;
 if (!API_KEY) { console.error('GROQ_API_KEY is not set.'); process.exit(1); }
 
-// The larger model is used here deliberately: an answer a student will act on
-// deserves more capability than a chapter label does.
-const MODEL = process.env.GROQ_ANSWER_MODEL || 'openai/gpt-oss-120b';
+// Groq caps tokens per day per model, so one model alone cannot finish a run of
+// this size. The list is tried in order and the run steps to the next model when
+// the current one's daily allowance is spent. The largest model is first because
+// an answer a student will act on deserves more capability than a chapter label
+// does; the rest are fallbacks, not equals.
+const MODELS = (process.env.GROQ_ANSWER_MODEL
+  || 'openai/gpt-oss-120b,qwen/qwen3.8-27b,openai/gpt-oss-20b,groq/compound-mini')
+  .split(',').map((m) => m.trim()).filter(Boolean);
+
+let modelIndex = 0;
+const exhausted = new Set();
+
+class DailyLimitReached extends Error {}
 const MAX_RETRIES = 5;
 const INTER_CALL_DELAY_MS = Number(process.env.GROQ_BATCH_DELAY_MS || 1200);
 const CACHE_PATH = path.join(root, 'research/boards/batches/pyq-draft-answers.json');
@@ -90,10 +100,20 @@ function loadCache() {
   return fs.existsSync(CACHE_PATH) ? JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8')) : {};
 }
 
+function currentModel() {
+  while (modelIndex < MODELS.length && exhausted.has(MODELS[modelIndex])) modelIndex++;
+  if (modelIndex >= MODELS.length) {
+    throw new DailyLimitReached('Every configured model has spent its Groq daily token allowance: '
+      + MODELS.join(', ') + '. Re-run after the quota resets.');
+  }
+  return MODELS[modelIndex];
+}
+
 async function draftAnswer(q, keys) {
   const optionLines = keys.map((k, i) => '(' + 'ABCD'[i] + ') ' + q.options[k]).join('\n');
+  const model = currentModel();
   const body = {
-    model: MODEL,
+    model,
     temperature: 0,
     response_format: { type: 'json_object' },
     messages: [
@@ -112,9 +132,12 @@ async function draftAnswer(q, keys) {
     if (res.status !== 429 || attempt >= MAX_RETRIES) break;
     // A per-day token limit will not clear within any sensible backoff. Say so
     // instead of retrying for minutes and looking like a hang.
+    // A per-day allowance will not clear within any backoff. Retire this model
+    // for the rest of the run and retry the same question on the next one.
     if (/tokens per day|TPD/i.test(res.text)) {
-      throw new Error('Groq daily token limit reached for ' + MODEL
-        + '. Re-run tomorrow, or set GROQ_ANSWER_MODEL to a model with its own quota.');
+      exhausted.add(model);
+      console.log('\n' + model + ' has spent its daily token allowance; switching model.');
+      return draftAnswer(q, keys);
     }
     const hinted = Number(res.retryAfter);
     const waitMs = Number.isFinite(hinted) && hinted > 0 ? hinted * 1000 : Math.min(60000, 2000 * Math.pow(2, attempt));
@@ -134,7 +157,7 @@ async function draftAnswer(q, keys) {
     answer_letter: letter,
     explanation: String(parsed.explanation || '').trim().slice(0, 600) || null,
     confidence: Number.isFinite(Number(parsed.confidence)) ? Number(parsed.confidence) : null,
-    model: MODEL,
+    model,
     drafted_at: new Date().toISOString(),
   };
 }
@@ -163,6 +186,9 @@ async function main() {
       cache[questionHash(q)] = await draftAnswer(q, keys);
       done++;
     } catch (e) {
+      // Nothing is left to try, so stop rather than marking every remaining
+      // question as failed.
+      if (e instanceof DailyLimitReached) { console.log('\n' + e.message); break; }
       failed++;
       if (failed <= 3) console.log('\nfailed: ' + e.message);
     }

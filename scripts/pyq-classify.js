@@ -42,10 +42,27 @@ for (const f of ['.env.local', '.env']) {
 const API_KEY = process.env.GROQ_API_KEY;
 if (!API_KEY) { console.error('GROQ_API_KEY is not set.'); process.exit(1); }
 
-// Matches pyqModelRoles.classification in src/services/pyqPolicy.ts. Note that
-// GROQ_MODEL is deliberately NOT used as a fallback: it still points at
-// llama-3.1-8b-instant, which Groq has decommissioned and now 404s.
-const MODEL = process.env.GROQ_CLASSIFIER_MODEL || 'openai/gpt-oss-20b';
+// Groq caps tokens per day per model, so one model alone cannot finish a run of
+// this size. The list is tried in order and the run steps to the next model when
+// the current one's daily allowance is spent. The first entry matches
+// pyqModelRoles.classification in src/services/pyqPolicy.ts.
+const MODELS = (process.env.GROQ_CLASSIFIER_MODEL
+  || 'openai/gpt-oss-20b,qwen/qwen3.8-27b,groq/compound-mini,openai/gpt-oss-120b')
+  .split(',').map((m) => m.trim()).filter(Boolean);
+
+let modelIndex = 0;
+const exhausted = new Set();
+
+class DailyLimitReached extends Error {}
+
+function currentModel() {
+  while (modelIndex < MODELS.length && exhausted.has(MODELS[modelIndex])) modelIndex++;
+  if (modelIndex >= MODELS.length) {
+    throw new DailyLimitReached('Every configured model has spent its Groq daily token allowance: '
+      + MODELS.join(', ') + '. Re-run after the quota resets.');
+  }
+  return MODELS[modelIndex];
+}
 const BATCH_SIZE = 15;
 const MAX_RETRIES = 5;
 // A small gap between calls keeps a long run under the per-minute limit rather
@@ -107,8 +124,9 @@ async function classifyBatch(subject, allowed, batch) {
     .map((q, i) => (i + 1) + '. ' + q.verbatim_question.replace(/\s+/g, ' ').slice(0, 400))
     .join('\n');
 
+  const model = currentModel();
   const body = {
-    model: MODEL,
+    model,
     temperature: 0,
     response_format: { type: 'json_object' },
     messages: [
@@ -131,9 +149,12 @@ async function classifyBatch(subject, allowed, batch) {
     if (res.status !== 429 || attempt >= MAX_RETRIES) break;
     // A per-day token limit will not clear within any sensible backoff. Say so
     // instead of retrying for minutes and looking like a hang.
+    // A per-day allowance will not clear within any backoff. Retire this model
+    // for the rest of the run and retry the same batch on the next one.
     if (/tokens per day|TPD/i.test(res.text)) {
-      throw new Error('Groq daily token limit reached for ' + MODEL
-        + '. Re-run tomorrow, or set GROQ_CLASSIFIER_MODEL to a model with its own quota.');
+      exhausted.add(model);
+      console.log('\n' + model + ' has spent its daily token allowance; switching model.');
+      return classifyBatch(subject, allowed, batch);
     }
     const hinted = Number(res.retryAfter);
     const waitMs = Number.isFinite(hinted) && hinted > 0
@@ -200,6 +221,9 @@ async function main() {
           if (labels[idx]) labelled++;
         });
       } catch (e) {
+        // Nothing is left to try, so stop rather than failing every remaining
+        // batch. Work already cached is kept.
+        if (e instanceof DailyLimitReached) { console.log('\n' + e.message); saveCache(cache); return; }
         console.log('batch failed (' + subject + '): ' + e.message);
       }
       processed += batch.length;

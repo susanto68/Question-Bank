@@ -94,7 +94,8 @@ async function callGroq(prompt, attempt = 1) {
   const key = clean(process.env.GROQ_API_KEY).replace(/[\r\n]/g, '');
   if (!key) throw new Error('Missing GROQ_API_KEY');
 
-  const model = process.env.GROQ_AGENT_MODEL || 'llama-3.1-8b-instant';
+  // llama-3.1-8b-instant was retired from Groq and now 404s.
+  const model = process.env.GROQ_AGENT_MODEL || 'qwen/qwen3.8-27b';
   const response = await fetch(process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
