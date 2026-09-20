@@ -1,0 +1,12 @@
+# Dependencies for tools/local_ocr.py — local, offline PDF text extraction.
+# Install: python -m pip install -r tools/requirements.txt
+#
+# Also requires the Tesseract OCR engine itself (a separate, non-pip install):
+#   Windows: winget install --id UB-Mannheim.TesseractOCR
+#   macOS:   brew install tesseract
+#   Linux:   apt install tesseract-ocr tesseract-ocr-hin tesseract-ocr-ben
+# (hin/ben language packs are optional, only needed for --lang eng+hin etc.)
+
+pymupdf>=1.24
+pytesseract>=0.3.10
+pillow>=10.0

@@ -40,7 +40,32 @@ function MarkdownBlock({ children }: { children: string }) {
   );
 }
 
+// A board question can be genuine while its answer is not board-issued. CBSE
+// publishes a marking scheme; CISCE publishes no ICSE answer key, so those
+// answers are drafts awaiting review. The badge makes that difference visible
+// instead of letting both look equally authoritative.
+const answerBadges: Record<string, { label: string; title: string; className: string }> = {
+  official_marking_scheme: {
+    label: 'Official key',
+    title: "Answer taken from the board's own marking scheme.",
+    className: 'bg-emerald-300/20 text-emerald-50',
+  },
+  human_reviewed: {
+    label: 'Reviewed',
+    title: 'Answer confirmed by a human reviewer.',
+    className: 'bg-sky-300/20 text-sky-50',
+  },
+  unverified_draft: {
+    label: 'Unverified',
+    title: 'The board publishes no answer key for this paper. This answer is a draft and has not been verified.',
+    className: 'bg-amber-300/25 text-amber-50',
+  },
+};
+
 export default function QuestionCard({ question, index }: QuestionCardProps) {
+  const answerBadge = question.answer_status ? answerBadges[question.answer_status] : undefined;
+  const isDraftAnswer = question.answer_status === 'unverified_draft';
+
   return (
     <article className="relative h-full overflow-hidden rounded-2xl border border-white/12 bg-slate-950/58 p-2.5 shadow-[0_7px_0_rgba(2,6,23,0.62),0_16px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:p-4 sm:shadow-[0_10px_0_rgba(2,6,23,0.62),0_22px_38px_rgba(0,0,0,0.3)]">
       <div className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${typeClasses[question.type] || 'from-cyan-300 to-blue-400'}`} />
@@ -76,8 +101,30 @@ export default function QuestionCard({ question, index }: QuestionCardProps) {
       ) : null}
 
       <div className="mt-2 grid gap-2 sm:mt-3 sm:grid-cols-2 sm:gap-3">
-        <div className="thin-scrollbar h-[70px] overflow-auto rounded-xl border border-emerald-300/20 bg-emerald-300/[0.08] p-2.5 sm:h-[82px] sm:p-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100 sm:text-xs">Answer</p>
+        <div
+          className={`thin-scrollbar h-[70px] overflow-auto rounded-xl border p-2.5 sm:h-[82px] sm:p-3 ${
+            isDraftAnswer
+              ? 'border-amber-300/30 bg-amber-300/[0.08]'
+              : 'border-emerald-300/20 bg-emerald-300/[0.08]'
+          }`}
+        >
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p
+              className={`text-[10px] font-black uppercase tracking-[0.14em] sm:text-xs ${
+                isDraftAnswer ? 'text-amber-100' : 'text-emerald-100'
+              }`}
+            >
+              Answer
+            </p>
+            {answerBadge ? (
+              <span
+                title={answerBadge.title}
+                className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider sm:text-[10px] ${answerBadge.className}`}
+              >
+                {answerBadge.label}
+              </span>
+            ) : null}
+          </div>
           <MarkdownBlock>{question.answer}</MarkdownBlock>
         </div>
         <div className="thin-scrollbar h-[70px] overflow-auto rounded-xl border border-cyan-300/15 bg-cyan-300/[0.06] p-2.5 sm:h-[82px] sm:p-3">

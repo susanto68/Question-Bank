@@ -10,6 +10,11 @@ import {
   normalizedQuestionKey,
   validateQuestionSet,
 } from '@/services/ai';
+import {
+  isVerifiedBoardPaper,
+  notPublishedMessage,
+  requiresVerifiedBoardPapers,
+} from '@/services/verifiedBoardContent';
 
 export type QuestionBankSourceMetadata = {
   sourceUrl?: string;
@@ -47,6 +52,8 @@ export type QuestionBankRow = {
   source_kind?: string | null;
   source_checked_at?: string | null;
   agent_run_id?: string | null;
+  official_source?: boolean | null;
+  answer_status?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -85,6 +92,8 @@ export function mapDbQuestion(q: QuestionBankRow, index: number): Question {
     source_kind: q.source_kind || undefined,
     source_checked_at: q.source_checked_at || undefined,
     agent_run_id: q.agent_run_id || undefined,
+    official_source: q.official_source === true,
+    answer_status: (q.answer_status as Question['answer_status']) || 'missing',
   };
 }
 
@@ -197,7 +206,9 @@ async function insertQuestionRows(rowsToInsert: Record<string, unknown>[], metad
 
 export async function ensureQuestionSet(payload: QuestionPayload, options: EnsureQuestionSetOptions = {}) {
   const cacheKey = buildCacheKey(payload);
-  const forceRegenerate = options.forceRegenerate === true;
+  // Evidence-only boards are populated by the extraction/review pipeline, not
+  // by regeneration. A force flag must never bypass the publication rule.
+  const forceRegenerate = options.forceRegenerate === true && !requiresVerifiedBoardPapers(payload.board);
   const isAgentRefresh = options.agentRefresh === true;
   const allowStarterOnMiss = options.allowStarterOnMiss !== false;
   const boardTotalCount = getActiveTotalCount(payload.board);
@@ -212,6 +223,17 @@ export async function ensureQuestionSet(payload: QuestionPayload, options: Ensur
     if (!dbError && dbQuestions?.length) {
       const mappedDbQuestions = (dbQuestions as QuestionBankRow[]).map(mapDbQuestion);
       const sortedDbQuestions = sortQuestions(mappedDbQuestions);
+      if (requiresVerifiedBoardPapers(payload.board)) {
+        const verifiedQuestions = sortedDbQuestions.filter((question) => isVerifiedBoardPaper(question));
+        if (verifiedQuestions.length) {
+          return {
+            ...buildResponse(payload, cacheKey, verifiedQuestions, dbQuestions[0]?.created_at),
+            source: 'verified-board-papers',
+            partial: verifiedQuestions.length < boardTotalCount,
+            expected: boardTotalCount,
+          };
+        }
+      }
       const sourceBackedQuestions = sortedDbQuestions.filter(isSourceBackedQuestion);
 
       if (dbQuestions.length >= boardTotalCount) {
@@ -247,6 +269,12 @@ export async function ensureQuestionSet(payload: QuestionPayload, options: Ensur
       } else {
         console.warn(`[Cache] PARTIAL: ${validDbQuestions.length}/${boardTotalCount} valid questions. Regenerating.`);
       }
+    }
+
+    if (requiresVerifiedBoardPapers(payload.board)) {
+      const error = new Error(notPublishedMessage(payload.board, payload.className, payload.subject, payload.chapter));
+      Object.assign(error, { status: 409 });
+      throw error;
     }
   }
 

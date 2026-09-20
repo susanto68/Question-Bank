@@ -29,6 +29,13 @@ export interface Question {
   source_kind?: string;
   source_checked_at?: string;
   agent_run_id?: string;
+  official_source?: boolean;
+  /**
+   * Where this answer came from. A board question can be genuine while its
+   * answer is not board-issued: CBSE publishes a marking scheme, CISCE does not
+   * publish any ICSE answer key. Students are shown the difference.
+   */
+  answer_status?: 'official_marking_scheme' | 'unverified_draft' | 'human_reviewed' | 'missing';
 }
 
 type Difficulty = 'Easy' | 'Medium' | 'Hard';
@@ -952,7 +959,9 @@ async function generateWithLlama(payload: QuestionPayload, section: BoardSection
 
   const modelName = (payload.sourceBrief ? process.env.GROQ_AGENT_MODEL : undefined) ||
     process.env.GROQ_MODEL ||
-    'llama-3.1-8b-instant';
+    // Llama 3.1 8B was retired from Groq developer access in 2026. Keep the
+    // environment override, but use a currently supported JSON-capable model.
+    'qwen/qwen3.8-27b';
   const timeoutMs = Number(process.env.GROQ_TIMEOUT_MS || 45000);
   const maxRetries = 2; // Reduced — we don't want to wait 98s multiple times
   const defaultMaxRateWaitMs = payload.sourceBrief ? 90000 : 8000;
@@ -1167,7 +1176,7 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
           cacheable: true,
           resilient: uniqueQuestions.length < boardTotalCount,
           provider: 'groq',
-          model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+          model: process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
         };
       }
 
@@ -1184,7 +1193,7 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
           cacheable: true,
           resilient: true,
           provider: 'groq',
-          model: process.env.GROQ_AGENT_MODEL || process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+          model: process.env.GROQ_AGENT_MODEL || process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
         };
       }
 
@@ -1203,7 +1212,7 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
             cacheable: true,
             resilient: true,
             provider: 'groq',
-            model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+            model: process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
           };
         }
       }

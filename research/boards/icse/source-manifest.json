@@ -1,0 +1,11 @@
+{
+  "board": "ICSE",
+  "official_domains": ["cisce.org"],
+  "rolling_window": [2026, 2025, 2024, 2023, 2022],
+  "syllabus_index": "https://cisce.org/regulations-and-syllabuses/",
+  "paper_index": "https://cisce.org/",
+  "specimen_index": "https://cisce.org/specimen-question-papers/",
+  "eligible_source_types": ["question_paper", "previous_year_paper"],
+  "research_only_source_types": ["specimen_paper", "answer_key", "syllabus"],
+  "agent_notes": ["Discover the exact annual paper from an official CISCE URL before adding it to source_documents.", "Specimen papers establish format only and must never be promoted as a genuine ICSE previous-year question."]
+}
