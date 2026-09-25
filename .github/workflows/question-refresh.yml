@@ -20,7 +20,7 @@ on:
       limit:
         description: "How many chapter sets to refresh"
         required: false
-        default: "3"
+        default: "1"
       forceRegenerate:
         description: "Replace existing rows with a fresh source-backed set"
         required: false
@@ -38,7 +38,7 @@ jobs:
           CLASS_NAME: ${{ inputs.className }}
           SUBJECT: ${{ inputs.subject }}
           CHAPTER: ${{ inputs.chapter }}
-          LIMIT: ${{ inputs.limit || '3' }}
+          LIMIT: ${{ inputs.limit || '1' }}
           FORCE_REGENERATE: ${{ inputs.forceRegenerate || 'true' }}
         run: |
           set -euo pipefail
@@ -54,7 +54,7 @@ jobs:
             className: process.env.CLASS_NAME || undefined,
             subject: process.env.SUBJECT || undefined,
             chapter: process.env.CHAPTER || undefined,
-            limit: Number(process.env.LIMIT || 3),
+            limit: Number(process.env.LIMIT || 1),
             forceRegenerate: process.env.FORCE_REGENERATE !== 'false',
             enableWebSearch: true,
           };

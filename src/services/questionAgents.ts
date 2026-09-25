@@ -1,6 +1,7 @@
 import { boards, getChapters, getClasses, getSubjects } from '@/data/catalog';
 import { QuestionPayload } from '@/services/ai';
 import { ensureQuestionSet, getQuestionSetStatus, QuestionBankSourceMetadata } from '@/services/questionBank';
+import supabaseAdmin from '@/lib/supabase/admin';
 
 export type QuestionRefreshTarget = QuestionPayload & {
   priority?: number;
@@ -403,8 +404,97 @@ export async function researchTargetSources(target: QuestionRefreshTarget, enabl
   };
 }
 
+const BOARD_EXAM_CLASSES = new Set(['Class 9', 'Class 10', 'Class 11', 'Class 12']);
+
+function isScheduledRun(options: AgentRunOptions): boolean {
+  return !options.board && !options.className && !options.subject && !options.chapter;
+}
+
+function targetKey(target: QuestionPayload): string {
+  return [target.board, target.className, target.subject, target.chapter].join('|');
+}
+
+// Rows can outlive catalog edits; don't spend tokens on pages students can't open.
+function isReachableInCatalog(target: QuestionPayload): boolean {
+  const board = boards.find((item) => item.name === target.board);
+  return Boolean(
+    board &&
+    getClasses(board.id).includes(target.className) &&
+    getSubjects(board.id, target.className).includes(target.subject) &&
+    getChapters(target.subject).includes(target.chapter)
+  );
+}
+
+// Chapters a student has opened but only got placeholder text for. These are the
+// best use of limited Groq tokens: real demand, currently useless content.
+async function findPlaceholderTargets(limit: number): Promise<QuestionRefreshTarget[]> {
+  const { data, error } = await supabaseAdmin
+    .from('question_bank')
+    .select('board,class_name,subject,chapter')
+    .eq('source', 'local-fallback')
+    .order('created_at', { ascending: true })
+    .limit(1000);
+
+  if (error) {
+    console.warn(`[agent] Placeholder lookup failed: ${error.message}`);
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const targets: QuestionRefreshTarget[] = [];
+  for (const row of data || []) {
+    const target = { board: row.board, className: row.class_name, subject: row.subject, chapter: row.chapter };
+    const key = targetKey(target);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (!isReachableInCatalog(target)) continue;
+    targets.push({ ...target, priority: BOARD_EXAM_CLASSES.has(target.className) ? 0 : 1 });
+  }
+
+  return targets
+    .sort((a, b) => (a.priority || 0) - (b.priority || 0))
+    .slice(0, limit);
+}
+
+async function isChapterFinished(target: QuestionPayload): Promise<boolean> {
+  const status = await getQuestionSetStatus(target);
+  if (!status.ready) return false;
+  const { count } = await supabaseAdmin
+    .from('question_bank')
+    .select('id', { count: 'exact', head: true })
+    .eq('board', target.board)
+    .eq('class_name', target.className)
+    .eq('subject', target.subject)
+    .eq('chapter', target.chapter)
+    .eq('source', 'local-fallback');
+  return !count;
+}
+
+async function selectRefreshTargets(options: AgentRunOptions): Promise<QuestionRefreshTarget[]> {
+  if (!isScheduledRun(options)) {
+    return buildAgentTargets(options);
+  }
+
+  // Scheduled runs never spend tokens on finished chapters or on the long tail of
+  // junior-class catalog combinations nobody has opened.
+  const limit = Math.min(Math.max(Number(options.limit || DEFAULT_BATCH_LIMIT), 1), MAX_BATCH_LIMIT);
+  const targets = await findPlaceholderTargets(limit);
+  if (targets.length >= limit) return targets;
+
+  const chosen = new Set(targets.map(targetKey));
+  const candidates = buildAgentTargets({ ...options, limit: MAX_BATCH_LIMIT })
+    .filter((target) => BOARD_EXAM_CLASSES.has(target.className) && !chosen.has(targetKey(target)));
+
+  for (const candidate of candidates) {
+    if (targets.length >= limit) break;
+    if (await isChapterFinished(candidate)) continue;
+    targets.push(candidate);
+  }
+  return targets;
+}
+
 export async function runQuestionRefreshAgents(options: AgentRunOptions = {}) {
-  const targets = buildAgentTargets(options);
+  const targets = await selectRefreshTargets(options);
   const agentRunId = `agent-${new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14)}`;
   const results = [];
 

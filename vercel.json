@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
-      "path": "/api/agent/refresh?limit=3&forceRegenerate=true&enableWebSearch=true",
+      "path": "/api/agent/refresh?limit=1&forceRegenerate=true&enableWebSearch=true",
       "schedule": "30 20 * * *"
     }
   ]

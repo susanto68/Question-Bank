@@ -169,7 +169,11 @@ function normalizeAnswerForOptions(answer: string, options: string[]): string {
 
   const normalizedAnswer = normalizeText(answer);
   const matchingOption = options.find((option) => normalizeText(option) === normalizedAnswer);
-  return matchingOption || clean(answer);
+  if (matchingOption) return matchingOption;
+
+  // Models often prefix the answer with its label, e.g. "(a) Both A and R are true...".
+  const unlabeled = normalizeText(clean(answer).replace(/^\s*(?:option\s*)?\(?[a-d]\)?\s*[.:)\-]?\s+/i, ''));
+  return options.find((option) => normalizeText(option) === unlabeled) || clean(answer);
 }
 
 function normalizeOptions(options: any[]): string[] {
@@ -341,14 +345,16 @@ function hasRequiredAnswerLength(q: Question): boolean {
     return count >= 2 && count <= 4;
   }
 
+  // Bounds are one sentence looser than the prompt asks for: rejecting a good
+  // answer that is a sentence short wastes the tokens spent generating it.
   if (q.type === 'Medium Answer') {
     const count = splitSentences(q.answer).length;
-    return count >= 4 && count <= 7;
+    return count >= 3 && count <= 8;
   }
 
   if (q.type === 'Long Answer') {
     const count = splitSentences(q.answer).length;
-    return count >= 5 && count <= 10;
+    return count >= 4 && count <= 12;
   }
 
   return true;
@@ -942,85 +948,155 @@ function chunkSection(section: BoardSectionSpec, globalStartId: number, maxQuest
   return chunks;
 }
 
-/**
- * Generates one section CHUNK using Llama via Groq API.
- * Includes automatic retry with exponential backoff for rate limit errors.
- */
-async function generateWithLlama(payload: QuestionPayload, section: BoardSectionSpec, startId: number, retryCount = 0): Promise<Question[]> {
-  const groqApiKey = (process.env.GROQ_API_KEY || '').replace(/[\r\n]/g, '').trim();
-  if (!groqApiKey) return [];
+// Groq retires models without notice (all Llama chat models were removed in
+// Sep 2026), so never depend on one model: rotate through a preference list,
+// skip models that 404 or are cooling down, and rediscover from /models when
+// every known model is gone. Each model also has its own per-minute token
+// budget, so rotation multiplies throughput on the free tier.
+const DEFAULT_GROQ_MODELS = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+const NON_CHAT_GROQ_MODEL = /whisper|guard|tts|orpheus|safeguard|allam|embed/i;
+const retiredGroqModels = new Set<string>();
+const groqModelCooldownUntil = new Map<string, number>();
+let discoveredGroqModels: string[] = [];
+let groqDiscoveryAttempted = false;
 
-  const modelName = (payload.sourceBrief ? process.env.GROQ_AGENT_MODEL : undefined) ||
-    process.env.GROQ_MODEL ||
-    'llama-3.1-8b-instant';
-  const timeoutMs = Number(process.env.GROQ_TIMEOUT_MS || 45000);
-  const maxRetries = 2; // Reduced — we don't want to wait 98s multiple times
-  const defaultMaxRateWaitMs = payload.sourceBrief ? 90000 : 8000;
-  const maxRateWaitMs = Math.min(Math.max(Number(process.env.GROQ_MAX_RATE_WAIT_MS || defaultMaxRateWaitMs), 0), 120000);
+function getGroqApiKey(): string {
+  return (process.env.GROQ_API_KEY || '').replace(/[\r\n]/g, '').trim();
+}
 
-  const prompt = buildSectionPrompt(payload, section, startId);
+function listGroqModelCandidates(payload: QuestionPayload): string[] {
+  const configured = [
+    payload.sourceBrief ? process.env.GROQ_AGENT_MODEL : undefined,
+    process.env.GROQ_MODEL,
+    ...(process.env.GROQ_FALLBACK_MODELS || '').split(','),
+  ];
+  return [...configured, ...DEFAULT_GROQ_MODELS, ...discoveredGroqModels]
+    .map((model) => (model || '').trim())
+    .filter((model, index, all) => model && all.indexOf(model) === index && !retiredGroqModels.has(model));
+}
 
-  const body = {
-    model: modelName,
+async function discoverGroqModels(apiKey: string): Promise<void> {
+  if (groqDiscoveryAttempted) return;
+  groqDiscoveryAttempted = true;
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!response.ok) return;
+    const data = await response.json();
+    discoveredGroqModels = (data?.data || [])
+      .filter((model: { id?: string; active?: boolean }) => model.id && model.active !== false && !NON_CHAT_GROQ_MODEL.test(model.id))
+      .map((model: { id: string }) => model.id);
+    console.log(`[Groq] Discovered chat models: ${discoveredGroqModels.join(', ') || 'none'}`);
+  } catch (error) {
+    console.warn('[Groq] Model discovery failed:', error instanceof Error ? error.message : error);
+  }
+}
+
+function parseGroqWaitMs(message: string): number | null {
+  const match = message.match(/try again in (?:(\d+)h)?(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s)?/i);
+  if (!match || !match.slice(1).some(Boolean)) return null;
+  const [, h, m, s] = match;
+  return ((Number(h || 0) * 3600) + (Number(m || 0) * 60) + Number(s || 0)) * 1000 + 500;
+}
+
+async function callGroqModel(apiKey: string, model: string, prompt: string, timeoutMs: number) {
+  const body: Record<string, unknown> = {
+    model,
     messages: [
       {
         role: 'system',
         content: 'You are an expert exam question creator. Return ONLY a valid JSON object with a "questions" array. No markdown, no commentary.',
       },
-      {
-        role: 'user',
-        content: prompt,
-      },
+      { role: 'user', content: prompt },
     ],
     temperature: 0.65,
-    max_tokens: 4000, // Increased from 2500 to handle richer questions
+    // Groq counts max_tokens against the per-minute budget up front, so keep it
+    // near what an 8-question chunk actually needs.
+    max_tokens: Number(process.env.GROQ_MAX_TOKENS || 3000),
   };
+  if (model.startsWith('openai/gpt-oss')) {
+    // Without this, gpt-oss can spend the whole budget reasoning and return empty content.
+    body.reasoning_effort = 'low';
+  }
 
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
     const response = await fetch(process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${groqApiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
-
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      const message = errData?.error?.message || `Groq request failed: ${response.status}`;
-
-      // Handle rate limit — cap wait at 30s max (don't wait 98s)
-      if ((response.status === 429 || /rate limit|rate_limit/i.test(message)) && retryCount < maxRetries) {
-        const waitMatch = message.match(/(\d+\.?\d*)s/);
-        const rawWait = waitMatch ? Math.ceil(parseFloat(waitMatch[1]) * 1000) + 500 : Math.pow(2, retryCount + 1) * 5000;
-        if (/tokens per day|tpd/i.test(message) || rawWait > maxRateWaitMs) {
-          throw new Error(message);
-        }
-
-        const waitMs = Math.min(rawWait, maxRateWaitMs);
-        console.log(`[Groq Rate Limit] ${section.key}: waiting ${waitMs}ms (capped) before retry ${retryCount + 1}/${maxRetries}...`);
-        await new Promise(r => setTimeout(r, waitMs));
-        return generateWithLlama(payload, section, startId, retryCount + 1);
-      }
-
-      throw new Error(message);
+      return { ok: false as const, status: response.status, message: String(errData?.error?.message || `Groq request failed: ${response.status}`) };
     }
-
     const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content || '';
-    const parsed = parseJson(content);
-    const rawQuestions = normalizeGeneratedQuestions(parsed, payload, section.type).slice(0, section.count);
-    
-    console.log(`[Llama OK] ${section.key}: ${rawQuestions.length}/${section.count} questions`);
-    return rawQuestions.map((q, idx) => ({ ...q, id: startId + idx }));
+    return { ok: true as const, content: String(data?.choices?.[0]?.message?.content || '') };
   } finally {
     clearTimeout(timeoutHandle);
   }
+}
+
+/**
+ * Generates one section chunk via Groq, rotating across working models.
+ */
+async function generateWithLlama(payload: QuestionPayload, section: BoardSectionSpec, startId: number): Promise<Question[]> {
+  const groqApiKey = getGroqApiKey();
+  if (!groqApiKey) return [];
+
+  const timeoutMs = Number(process.env.GROQ_TIMEOUT_MS || 45000);
+  const defaultMaxRateWaitMs = payload.sourceBrief ? 90000 : 8000;
+  const maxRateWaitMs = Math.min(Math.max(Number(process.env.GROQ_MAX_RATE_WAIT_MS || defaultMaxRateWaitMs), 0), 120000);
+  const prompt = buildSectionPrompt(payload, section, startId);
+  let lastError = 'No Groq model available';
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    let candidates = listGroqModelCandidates(payload);
+    if (!candidates.length) {
+      await discoverGroqModels(groqApiKey);
+      candidates = listGroqModelCandidates(payload);
+      if (!candidates.length) break;
+    }
+
+    const now = Date.now();
+    const ready = candidates.find((model) => (groqModelCooldownUntil.get(model) || 0) <= now);
+    if (!ready) {
+      const soonest = Math.min(...candidates.map((model) => groqModelCooldownUntil.get(model) || now));
+      const waitMs = soonest - now;
+      if (waitMs > maxRateWaitMs) break;
+      console.log(`[Groq] All models cooling down; waiting ${waitMs}ms for ${section.key}`);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      continue;
+    }
+
+    const result = await callGroqModel(groqApiKey, ready, prompt, timeoutMs);
+    if (result.ok) {
+      const parsed = parseJson(result.content);
+      const rawQuestions = normalizeGeneratedQuestions(parsed, payload, section.type).slice(0, section.count);
+      console.log(`[Groq OK] ${section.key} via ${ready}: ${rawQuestions.length}/${section.count} questions`);
+      return rawQuestions.map((q, idx) => ({ ...q, id: startId + idx }));
+    }
+
+    lastError = `${ready}: ${result.message}`;
+    if (result.status === 404 || /decommissioned|does not exist|not found|not supported|model_not_found/i.test(result.message)) {
+      console.warn(`[Groq] Retiring unavailable model ${ready}: ${result.message}`);
+      retiredGroqModels.add(ready);
+      continue;
+    }
+    if (result.status === 429 || /rate limit|rate_limit/i.test(result.message)) {
+      const isDailyCap = /tokens per day|requests per day|\bTPD\b|\bRPD\b/i.test(result.message);
+      const waitMs = parseGroqWaitMs(result.message) ?? (isDailyCap ? 3600000 : 15000);
+      groqModelCooldownUntil.set(ready, Date.now() + waitMs);
+      console.log(`[Groq] ${ready} rate-limited for ${waitMs}ms; rotating to next model`);
+      continue;
+    }
+    throw new Error(lastError);
+  }
+
+  throw new Error(lastError);
 }
 
 /**
@@ -1132,8 +1208,16 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
 
       const groqResults: Question[][] = [];
       let groqSuccessChunks = 0;
+      // Stop starting new calls before the serverless timeout so finished chunks
+      // are saved instead of being lost when the function is killed.
+      const budgetMs = Number(process.env.GROQ_AGENT_TIME_BUDGET_MS || 230000);
+      const deadline = payload.sourceBrief ? Date.now() + budgetMs : Infinity;
 
       for (let cIdx = 0; cIdx < allChunks.length; cIdx++) {
+        if (Date.now() > deadline) {
+          console.warn(`[Groq] Time budget reached after ${cIdx}/${allChunks.length} chunks; saving what we have.`);
+          break;
+        }
         const { mini, startId } = allChunks[cIdx];
         try {
           const chunkQs = await generateWithLlama(payload, mini, startId);

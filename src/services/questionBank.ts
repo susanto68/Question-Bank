@@ -292,6 +292,21 @@ export async function ensureQuestionSet(payload: QuestionPayload, options: Ensur
       if (deleteError) {
         throw new Error(`Failed to clear incomplete question cache: ${deleteError.message}`);
       }
+    } else {
+      // A partial real set must displace placeholder rows; otherwise the chapter
+      // still counts as "full" and students keep seeing template text.
+      const { error: placeholderDeleteError } = await supabaseAdmin
+        .from('question_bank')
+        .delete()
+        .eq('board', payload.board)
+        .eq('class_name', payload.className)
+        .eq('subject', payload.subject)
+        .eq('chapter', payload.chapter)
+        .eq('source', 'local-fallback');
+
+      if (placeholderDeleteError) {
+        throw new Error(`Failed to clear placeholder questions: ${placeholderDeleteError.message}`);
+      }
     }
 
     const { count: officialCount, error: officialCountError } = await supabaseAdmin
