@@ -196,7 +196,7 @@ export default function BoardPage({ params }: PageProps) {
             {questionsLoading && !result ? <LoadingState label="AI Generator in progress..." /> : null}
 
             {!questionsLoading && error ? (
-              <EmptyState title="Generation requires review" body={error} />
+              <EmptyState title="Questions not available yet" body={error} />
             ) : null}
 
             {!error && result ? (

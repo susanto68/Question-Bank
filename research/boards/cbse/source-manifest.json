@@ -1,0 +1,11 @@
+{
+  "board": "CBSE",
+  "official_domains": ["cbse.gov.in", "cbseacademic.nic.in"],
+  "rolling_window": [2026, 2025, 2024, 2023, 2022],
+  "syllabus_index": "https://cbseacademic.nic.in/curriculum_2027.html",
+  "paper_index": "https://www.cbse.gov.in/cbsenew/question-paper.html",
+  "sample_paper_index": "https://cbseacademic.nic.in/sqp_archive.html",
+  "eligible_source_types": ["question_paper", "previous_year_paper"],
+  "research_only_source_types": ["sample_paper", "marking_scheme", "syllabus"],
+  "agent_notes": ["Discover the official PDF from the question-paper index; do not construct URLs without fetching them.", "Use marking schemes to validate answers, but a sample paper or marking scheme alone cannot make a question genuine."]
+}

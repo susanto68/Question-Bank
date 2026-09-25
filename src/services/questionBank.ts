@@ -10,6 +10,11 @@ import {
   normalizedQuestionKey,
   validateQuestionSet,
 } from '@/services/ai';
+import {
+  isVerifiedBoardPaper,
+  notPublishedMessage,
+  requiresVerifiedBoardPapers,
+} from '@/services/verifiedBoardContent';
 
 export type QuestionBankSourceMetadata = {
   sourceUrl?: string;
@@ -47,6 +52,8 @@ export type QuestionBankRow = {
   source_kind?: string | null;
   source_checked_at?: string | null;
   agent_run_id?: string | null;
+  official_source?: boolean | null;
+  answer_status?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -85,6 +92,8 @@ export function mapDbQuestion(q: QuestionBankRow, index: number): Question {
     source_kind: q.source_kind || undefined,
     source_checked_at: q.source_checked_at || undefined,
     agent_run_id: q.agent_run_id || undefined,
+    official_source: q.official_source === true,
+    answer_status: (q.answer_status as Question['answer_status']) || 'missing',
   };
 }
 
@@ -195,10 +204,19 @@ async function insertQuestionRows(rowsToInsert: Record<string, unknown>[], metad
   }
 }
 
+function notPublishedError(payload: QuestionPayload): Error {
+  const error = new Error(notPublishedMessage(payload.board, payload.className, payload.subject, payload.chapter));
+  Object.assign(error, { status: 409 });
+  return error;
+}
+
 export async function ensureQuestionSet(payload: QuestionPayload, options: EnsureQuestionSetOptions = {}) {
   const cacheKey = buildCacheKey(payload);
-  const forceRegenerate = options.forceRegenerate === true;
   const isAgentRefresh = options.agentRefresh === true;
+  const evidenceBoard = requiresVerifiedBoardPapers(payload.board);
+  // On evidence boards only the refresh agent may regenerate (to fill chapters
+  // that have no past papers); verified rows are official and never deleted.
+  const forceRegenerate = options.forceRegenerate === true && (!evidenceBoard || isAgentRefresh);
   const allowStarterOnMiss = options.allowStarterOnMiss !== false;
   const boardTotalCount = getActiveTotalCount(payload.board);
 
@@ -212,6 +230,31 @@ export async function ensureQuestionSet(payload: QuestionPayload, options: Ensur
     if (!dbError && dbQuestions?.length) {
       const mappedDbQuestions = (dbQuestions as QuestionBankRow[]).map(mapDbQuestion);
       const sortedDbQuestions = sortQuestions(mappedDbQuestions);
+      if (evidenceBoard) {
+        // Past papers first; AI practice only where a chapter has none; never
+        // placeholder text.
+        const verifiedQuestions = sortedDbQuestions.filter((question) => isVerifiedBoardPaper(question));
+        if (verifiedQuestions.length) {
+          return {
+            ...buildResponse(payload, cacheKey, verifiedQuestions, dbQuestions[0]?.created_at),
+            source: 'verified-board-papers',
+            partial: verifiedQuestions.length < boardTotalCount,
+            expected: boardTotalCount,
+          };
+        }
+
+        const practiceQuestions = sortedDbQuestions.filter((question) =>
+          question.source !== 'local-fallback' && question.source !== 'starter' && isSourceBackedQuestion(question));
+        if (practiceQuestions.length && !isAgentRefresh) {
+          return {
+            ...buildResponse(payload, cacheKey, practiceQuestions, dbQuestions[0]?.created_at),
+            source: 'ai-practice',
+            partial: practiceQuestions.length < boardTotalCount,
+            expected: boardTotalCount,
+          };
+        }
+        if (!isAgentRefresh) throw notPublishedError(payload);
+      }
       const sourceBackedQuestions = sortedDbQuestions.filter(isSourceBackedQuestion);
 
       if (dbQuestions.length >= boardTotalCount) {
@@ -248,6 +291,8 @@ export async function ensureQuestionSet(payload: QuestionPayload, options: Ensur
         console.warn(`[Cache] PARTIAL: ${validDbQuestions.length}/${boardTotalCount} valid questions. Regenerating.`);
       }
     }
+
+    if (evidenceBoard && !isAgentRefresh) throw notPublishedError(payload);
   }
 
   const generated = forceRegenerate || isAgentRefresh

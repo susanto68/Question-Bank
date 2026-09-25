@@ -29,6 +29,13 @@ export interface Question {
   source_kind?: string;
   source_checked_at?: string;
   agent_run_id?: string;
+  official_source?: boolean;
+  /**
+   * Where this answer came from. A board question can be genuine while its
+   * answer is not board-issued: CBSE publishes a marking scheme, CISCE does not
+   * publish any ICSE answer key. Students are shown the difference.
+   */
+  answer_status?: 'official_marking_scheme' | 'unverified_draft' | 'human_reviewed' | 'missing';
 }
 
 type Difficulty = 'Easy' | 'Medium' | 'Hard';
@@ -1261,7 +1268,7 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
           cacheable: true,
           resilient: uniqueQuestions.length < boardTotalCount,
           provider: 'groq',
-          model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+          model: process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
         };
       }
 
@@ -1278,7 +1285,7 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
           cacheable: true,
           resilient: true,
           provider: 'groq',
-          model: process.env.GROQ_AGENT_MODEL || process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+          model: process.env.GROQ_AGENT_MODEL || process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
         };
       }
 
@@ -1297,7 +1304,7 @@ export async function generateQuestions(payload: QuestionPayload): Promise<Gener
             cacheable: true,
             resilient: true,
             provider: 'groq',
-            model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+            model: process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
           };
         }
       }

@@ -2,6 +2,7 @@ import { boards, getChapters, getClasses, getSubjects } from '@/data/catalog';
 import { QuestionPayload } from '@/services/ai';
 import { ensureQuestionSet, getQuestionSetStatus, QuestionBankSourceMetadata } from '@/services/questionBank';
 import supabaseAdmin from '@/lib/supabase/admin';
+import { OFFICIAL_PAPER_KINDS, requiresVerifiedBoardPapers, rollingBoardPaperYears } from '@/services/verifiedBoardContent';
 
 export type QuestionRefreshTarget = QuestionPayload & {
   priority?: number;
@@ -451,12 +452,34 @@ async function findPlaceholderTargets(limit: number): Promise<QuestionRefreshTar
     targets.push({ ...target, priority: BOARD_EXAM_CLASSES.has(target.className) ? 0 : 1 });
   }
 
-  return targets
-    .sort((a, b) => (a.priority || 0) - (b.priority || 0))
-    .slice(0, limit);
+  const chosen: QuestionRefreshTarget[] = [];
+  for (const target of targets.sort((a, b) => (a.priority || 0) - (b.priority || 0))) {
+    if (chosen.length >= limit) break;
+    if (await hasVerifiedPapers(target)) continue;
+    chosen.push(target);
+  }
+  return chosen;
+}
+
+// On evidence boards a chapter with verified past papers never shows AI
+// questions, so generating any for it would waste tokens.
+async function hasVerifiedPapers(target: QuestionPayload): Promise<boolean> {
+  if (!requiresVerifiedBoardPapers(target.board)) return false;
+  const { count } = await supabaseAdmin
+    .from('question_bank')
+    .select('id', { count: 'exact', head: true })
+    .eq('board', target.board)
+    .eq('class_name', target.className)
+    .eq('subject', target.subject)
+    .eq('chapter', target.chapter)
+    .eq('official_source', true)
+    .in('source_kind', [...OFFICIAL_PAPER_KINDS])
+    .overlaps('source_years', rollingBoardPaperYears());
+  return Boolean(count);
 }
 
 async function isChapterFinished(target: QuestionPayload): Promise<boolean> {
+  if (await hasVerifiedPapers(target)) return true;
   const status = await getQuestionSetStatus(target);
   if (!status.ready) return false;
   const { count } = await supabaseAdmin

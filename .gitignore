@@ -24,6 +24,24 @@
 # research pipeline: keep metadata, skip redistributing downloaded source PDFs
 research/**/documents/
 
+# Previous-year-question pipeline working data. These are the boards' own
+# examination papers downloaded from cbse.gov.in and cisce.org, plus everything
+# derived from them. They are large (GBs) and they are the boards' material to
+# distribute, not this repository's. Everything here is reproducible by running
+# scripts/build-pyq-manifest.js and scripts/pyq-download.js.
+research/boards/archives/
+research/boards/papers/
+research/boards/ocr/
+research/boards/batches/pyq-window_results.json
+research/boards/batches/pyq-survey.json
+research/boards/batches/pyq-extracted-mcq.json
+research/boards/batches/pyq-marking-answers.json
+research/boards/batches/pyq-chapter-classification.json
+research/boards/batches/pyq-draft-answers.json
+
+# scratch
+tmp/
+
 # misc
 .DS_Store
 *.pem
