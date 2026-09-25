@@ -1052,12 +1052,13 @@ async function generateWithLlama(payload: QuestionPayload, section: BoardSection
   const maxRateWaitMs = Math.min(Math.max(Number(process.env.GROQ_MAX_RATE_WAIT_MS || defaultMaxRateWaitMs), 0), 120000);
   const prompt = buildSectionPrompt(payload, section, startId);
   let lastError = 'No Groq model available';
+  const badOutputModels = new Set<string>();
 
   for (let attempt = 0; attempt < 8; attempt++) {
-    let candidates = listGroqModelCandidates(payload);
+    let candidates = listGroqModelCandidates(payload).filter((model) => !badOutputModels.has(model));
     if (!candidates.length) {
       await discoverGroqModels(groqApiKey);
-      candidates = listGroqModelCandidates(payload);
+      candidates = listGroqModelCandidates(payload).filter((model) => !badOutputModels.has(model));
       if (!candidates.length) break;
     }
 
@@ -1074,7 +1075,16 @@ async function generateWithLlama(payload: QuestionPayload, section: BoardSection
 
     const result = await callGroqModel(groqApiKey, ready, prompt, timeoutMs);
     if (result.ok) {
-      const parsed = parseJson(result.content);
+      let parsed: unknown;
+      try {
+        parsed = parseJson(result.content);
+      } catch (error) {
+        // Malformed JSON: retry this chunk on another model rather than drop it.
+        lastError = `${ready}: unparseable output (${error instanceof Error ? error.message : error})`;
+        console.warn(`[Groq] ${lastError}; retrying ${section.key} on another model`);
+        badOutputModels.add(ready);
+        continue;
+      }
       const rawQuestions = normalizeGeneratedQuestions(parsed, payload, section.type).slice(0, section.count);
       console.log(`[Groq OK] ${section.key} via ${ready}: ${rawQuestions.length}/${section.count} questions`);
       return rawQuestions.map((q, idx) => ({ ...q, id: startId + idx }));

@@ -1,5 +1,9 @@
 name: Question Bank Refresh
 
+# Generates questions directly on the GitHub runner (free for this public repo)
+# instead of calling the Vercel API, so it keeps working when Vercel deploys are
+# blocked and isn't cut off by the serverless timeout. One chapter per hour
+# stays within Groq's free daily token allowance.
 on:
   schedule:
     - cron: "0 * * * *"
@@ -26,47 +30,36 @@ on:
         required: false
         default: "true"
 
+concurrency:
+  group: question-refresh
+  cancel-in-progress: false
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: Call Vercel refresh agent
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate questions
         env:
-          QUESTION_BANK_BASE_URL: ${{ secrets.QUESTION_BANK_BASE_URL || 'https://question-bank.vercel.app' }}
-          QUESTION_AGENT_SECRET: ${{ secrets.QUESTION_AGENT_SECRET || secrets.CRON_SECRET }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_MODEL: qwen/qwen3.8-27b
+          GROQ_FALLBACK_MODELS: openai/gpt-oss-120b,openai/gpt-oss-20b
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           BOARD: ${{ inputs.board }}
           CLASS_NAME: ${{ inputs.className }}
           SUBJECT: ${{ inputs.subject }}
           CHAPTER: ${{ inputs.chapter }}
           LIMIT: ${{ inputs.limit || '1' }}
           FORCE_REGENERATE: ${{ inputs.forceRegenerate || 'true' }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "$QUESTION_AGENT_SECRET" ]; then
-            echo "::error::Missing GitHub secret QUESTION_AGENT_SECRET."
-            exit 1
-          fi
-
-          node <<'NODE'
-          const payload = {
-            board: process.env.BOARD || undefined,
-            className: process.env.CLASS_NAME || undefined,
-            subject: process.env.SUBJECT || undefined,
-            chapter: process.env.CHAPTER || undefined,
-            limit: Number(process.env.LIMIT || 1),
-            forceRegenerate: process.env.FORCE_REGENERATE !== 'false',
-            enableWebSearch: true,
-          };
-          for (const key of Object.keys(payload)) {
-            if (payload[key] === undefined || payload[key] === '') delete payload[key];
-          }
-          require('fs').writeFileSync('payload.json', JSON.stringify(payload));
-          NODE
-
-          curl --fail --show-error --silent \
-            --request POST \
-            --header "Authorization: Bearer ${QUESTION_AGENT_SECRET}" \
-            --header "Content-Type: application/json" \
-            --data @payload.json \
-            "${QUESTION_BANK_BASE_URL%/}/api/agent/refresh" | tee refresh-response.json
+        run: npx --yes tsx@4 --tsconfig tsconfig.json scripts/refresh-questions.ts
